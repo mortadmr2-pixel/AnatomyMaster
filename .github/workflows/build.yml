@@ -26,13 +26,15 @@ jobs:
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
+          # تثبيت مكتبة معالجة الصور لحل الخطأ
+          pip install Pillow
+
           # تنزيل وضبط أيقونة الهيكل العظمي تلقائياً
           python3 - << 'EOF'
           import urllib.request
           import os
           from PIL import Image
 
-          # رابط مباشر لتحميل نفس صورة الهيكل والقفص الصدري
           url = "https://images.fineartamerica.com/images/artworkimages/mediumlarge/3/futuristic-human-skeleton-and-rib-cage-digital-anatomy-mark-taylor.jpg"
           try:
               headers = {'User-Agent': 'Mozilla/5.0'}
@@ -59,7 +61,7 @@ jobs:
               print("Error applying icon:", e)
           EOF
 
-          # الحفاظ على إعدادات البناء الناجحة
+          # إعدادات البناء المستقرة
           echo "org.gradle.jvmargs=-Xmx3072m -XX:+UseParallelGC" > gradle.properties
           echo "org.gradle.parallel=false" >> gradle.properties
           echo "kotlin.jvm.target.validation.mode=warning" >> gradle.properties
