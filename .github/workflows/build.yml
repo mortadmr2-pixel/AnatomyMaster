@@ -11,9 +11,13 @@ jobs:
       - name: Extract Project ZIP
         run: |
           unzip -o AnatomyMaster_FINAL_Android.zip
-          if [ -d "AnatomyMaster_FINAL" ]; then
-            cp -r AnatomyMaster_FINAL/* .
+          # البحث التلقائي عن مجلد المشروع الذي يحتوي على gradlew ونقل محتوياته للمسار الرئيسي
+          GRADLE_DIR=$(dirname $(find . -maxdepth 3 -name "gradlew" | head -n 1))
+          if [ -n "$GRADLE_DIR" ] && [ "$GRADLE_DIR" != "." ]; then
+            echo "Moving files from $GRADLE_DIR to root..."
+            cp -r $GRADLE_DIR/* .
           fi
+          ls -la
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
