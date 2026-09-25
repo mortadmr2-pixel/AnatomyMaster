@@ -22,11 +22,15 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Apply Anatomy Icon, Fix Code & Build APK
+      - name: Force Anatomy Icon, Fix Code & Build APK
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-          # 1. تثبيت مكتبة الصور وتحميل أيقونة الهيكل العظمي
+          # 1. إزالة الأيقونة القديمة التكيفية التي تفرض صورة الروبوت
+          rm -rf app/src/main/res/mipmap-anydpi-v26
+          rm -rf app/src/main/res/mipmap-anydpi
+
+          # 2. تثبيت Pillow وتوليد الأيقونة بصيغة PNG لكل المقاسات
           pip install Pillow
           python3 - << 'EOF'
           import urllib.request
@@ -41,12 +45,15 @@ jobs:
                   out.write(resp.read())
               
               img = Image.open("icon_temp.jpg").convert("RGBA")
+              
+              # استبدال الأيقونات في جميع المجلدات بدون استثناء
               sizes = {
                   "mipmap-mdpi": 48,
                   "mipmap-hdpi": 72,
                   "mipmap-xhdpi": 96,
                   "mipmap-xxhdpi": 144,
-                  "mipmap-xxxhdpi": 192
+                  "mipmap-xxxhdpi": 192,
+                  "drawable": 192
               }
               for folder, sz in sizes.items():
                   path = os.path.join("app/src/main/res", folder)
@@ -54,12 +61,12 @@ jobs:
                   res = img.resize((sz, sz), Image.Resampling.LANCZOS)
                   res.save(os.path.join(path, "ic_launcher.png"), "PNG")
                   res.save(os.path.join(path, "ic_launcher_round.png"), "PNG")
-              print("Icon downloaded and applied successfully!")
+              print("All app icons successfully replaced with Anatomy Skeleton!")
           except Exception as e:
               print("Icon error:", e)
           EOF
 
-          # 2. ضمان عدم وجود أخطاء في كود Kotlin (MainActivity.kt)
+          # 3. التأكد من سلامة ملف كود MainActivity
           TARGET_FILE=$(find app/src/main/java -name "MainActivity.kt" | head -n 1)
           if [ -n "$TARGET_FILE" ]; then
             cat << 'EOF' > "$TARGET_FILE"
@@ -271,7 +278,7 @@ jobs:
           EOF
           fi
 
-          # 3. بناء المشروع بأمان تام
+          # 4. إعدادات Gradle والبناء
           echo "org.gradle.jvmargs=-Xmx3072m -XX:+UseParallelGC" > gradle.properties
           echo "org.gradle.parallel=false" >> gradle.properties
           echo "kotlin.jvm.target.validation.mode=warning" >> gradle.properties
