@@ -31,9 +31,14 @@ jobs:
           echo "kotlin.jvm.target.validation.mode=warning" >> gradle.properties
           echo "android.useAndroidX=true" >> gradle.properties
 
+          # تفعيل السماح بالمكتبات التجريبية داخل build.gradle.kts
+          if [ -f "app/build.gradle.kts" ]; then
+            echo 'tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach { kotlinOptions { freeCompilerArgs += listOf("-opt-in=androidx.compose.material3.ExperimentalMaterial3Api") } }' >> app/build.gradle.kts
+          fi
+
           gradle wrapper --gradle-version 8.9
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug -Pkotlin.jvm.target.validation.mode=warning --no-daemon
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
