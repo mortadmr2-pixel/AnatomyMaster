@@ -11,14 +11,77 @@ jobs:
       - name: Extract Project ZIP
         run: unzip -o AnatomyMaster_FINAL_Android.zip
 
-      - name: Print Broken Lines Only
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.9'
+
+      - name: Fix Code & Build APK
         run: |
-          FILE="app/src/main/java/com/example/anatomymaster/MainActivity.kt"
-          echo "=== 1. Check Line 335 to 355 ==="
-          nl -ba "$FILE" | sed -n '335,355p'
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-          echo "=== 2. Check Line 425 to 450 ==="
-          nl -ba "$FILE" | sed -n '425,450p'
+          python3 - << 'EOF'
+          file_path = "app/src/main/java/com/example/anatomymaster/MainActivity.kt"
+          with open(file_path, "r", encoding="utf-8") as f:
+              lines = f.readlines()
 
-          echo "=== 3. Check Line 510 to 525 ==="
-          nl -ba "$FILE" | sed -n '510,525p'
+          # إضافة الاستيراد اللازم لـ items و OptIn في السطر الأول
+          header = "@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)\npackage com.example.anatomymaster\n\nimport androidx.compose.foundation.lazy.items\n"
+          
+          new_lines = []
+          for line in lines:
+              # استبدال سطر الحزمة بإضافة الاستيرادات
+              if line.startswith("package com.example.anatomymaster"):
+                  new_lines.append(header)
+                  continue
+
+              # 1. إزالة القوس الزائد عند السطر 339
+              if line.strip() == "}" and len(new_lines) > 330 and len(new_lines) < 345:
+                  if new_lines[-1].strip() == "}":
+                      continue
+
+              # 2. تصحيح وسائط NavigationBarItem (الأسطر 348-350)
+              if "NavigationBarItem(true, {}, {}," in line:
+                  line = line.replace("NavigationBarItem(true, {}, {},", "NavigationBarItem(selected = true, onClick = {},")
+              if "NavigationBarItem(false, {}, onQuiz," in line:
+                  line = line.replace("NavigationBarItem(false, {}, onQuiz,", "NavigationBarItem(selected = false, onClick = onQuiz,")
+              if "NavigationBarItem(false, {}, onProgress," in line:
+                  line = line.replace("NavigationBarItem(false, {}, onProgress,", "NavigationBarItem(selected = false, onClick = onProgress,")
+
+              # 3. تصحيح القوس الزائد قبل fun iconFor عند السطر 446
+              if line.strip() == "}" and len(new_lines) > 435 and len(new_lines) < 455:
+                  if new_lines[-1].strip() == "}":
+                      continue
+
+              # 4. تصحيح كود الـ onClick في شاشة الاختبار (السطر 515)
+              if "if(selected==null) {{selected=i;" in line:
+                  line = "                            if (selected == null) { selected = i; if (i == q.answer) score++ }\n"
+
+              new_lines.append(line)
+
+          with open(file_path, "w", encoding="utf-8") as f:
+              f.writelines(new_lines)
+          print("Patched MainActivity.kt successfully!")
+          EOF
+
+          # ضبط إعدادات الذاكرة والمترجم
+          echo "org.gradle.jvmargs=-Xmx3072m -XX:+UseParallelGC" > gradle.properties
+          echo "org.gradle.parallel=false" >> gradle.properties
+          echo "kotlin.jvm.target.validation.mode=warning" >> gradle.properties
+          echo "android.useAndroidX=true" >> gradle.properties
+
+          gradle wrapper --gradle-version 8.9
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AnatomyMaster-APK
+          path: app/build/outputs/apk/debug/*.apk
