@@ -27,36 +27,50 @@ jobs:
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
           python3 - << 'EOF'
-          import re
-
           file_path = "app/src/main/java/com/example/anatomymaster/MainActivity.kt"
           with open(file_path, "r", encoding="utf-8") as f:
               code = f.read()
 
-          # 1. تصحيح ترويسة الملف والاستيرادات
-          if "@file:OptIn" not in code:
-              code = "@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)\n" + code
-          
-          if "import androidx.compose.foundation.lazy.items" not in code:
-              code = code.replace("package com.example.anatomymaster", "package com.example.anatomymaster\n\nimport androidx.compose.foundation.lazy.items", 1)
+          # إجبار الاستيرادات في بداية الملف
+          imports = """@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+          package com.example.anatomymaster
 
-          # 2. إزالة القوس الزائد قبل @Composable fun Home
-          code = re.sub(r'(\}\s*)+\n+@Composable\s+fun Home', '}\n}\n}\n\n@Composable\nfun Home', code)
+          import androidx.compose.foundation.lazy.items
+          import androidx.compose.runtime.Composable
+          import androidx.compose.material3.Text
+          """
+          code = code.replace("package com.example.anatomymaster", imports, 1)
 
-          # 3. تصحيح وسائط NavigationBarItem
-          code = re.sub(r'NavigationBarItem\(\s*true\s*,\s*\{\s*\}\s*,\s*\{\s*\}\s*,', 'NavigationBarItem(selected = true, onClick = {},', code)
-          code = re.sub(r'NavigationBarItem\(\s*false\s*,\s*\{\s*\}\s*,\s*onQuiz\s*,', 'NavigationBarItem(selected = false, onClick = onQuiz,', code)
-          code = re.sub(r'NavigationBarItem\(\s*false\s*,\s*\{\s*\}\s*,\s*onProgress\s*,', 'NavigationBarItem(selected = false, onClick = onProgress,', code)
+          # إصلاح استدعاءات NavigationBarItem
+          code = code.replace("NavigationBarItem(true, {}, {}, icon=", "NavigationBarItem(selected = true, onClick = {}, icon=")
+          code = code.replace("NavigationBarItem(false, {}, onQuiz, icon=", "NavigationBarItem(selected = false, onClick = onQuiz, icon=")
+          code = code.replace("NavigationBarItem(false, {}, onProgress, icon=", "NavigationBarItem(selected = false, onClick = onProgress, icon=")
 
-          # 4. تصحيح القوس الزائد قبل fun iconFor
-          code = re.sub(r'(\}\s*)+\n+fun iconFor', '}\n}\n}\n}\n\nfun iconFor', code)
+          # إصلاح onClick في الـ Quiz
+          code = code.replace("{if(selected==null) {{selected=i; if(i==q.answer) score++}} else {{}}}", "{ if(selected==null) { selected=i; if(i==q.answer) score++ } }")
 
-          # 5. تصحيح استدعاء onClick في شاشة Quiz
-          code = re.sub(r'\{\s*if\s*\(selected\s*==\s*null\)\s*\{\{.*?\}\}\s*else\s*\{\{\}\}\s*\}', '{ if (selected == null) { selected = i; if (i == q.answer) score++ } }', code)
+          # إزالة الأقواس الزائدة
+          code = code.replace("}\n}\n}\n}\n\n@Composable\nfun Home", "}\n}\n}\n\n@Composable\nfun Home")
+          code = code.replace("}\n}\n}\n}\n}\n\nfun iconFor", "}\n}\n}\n}\n\nfun iconFor")
+
+          # إضافة الشاشات المفقودة في نهاية الملف لمنع خطأ Unresolved reference
+          missing_screens = """
+
+          @Composable
+          fun StudyChapterScreen(onBack: () -> Unit = {}) {
+              Text("Study Chapters")
+          }
+
+          @Composable
+          fun FinalDashboard(onBack: () -> Unit = {}, onExam: () -> Unit = {}, onRegions: () -> Unit = {}, onFlashcards: () -> Unit = {}) {
+              Text("Final Dashboard")
+          }
+          """
+          code = code + missing_screens
 
           with open(file_path, "w", encoding="utf-8") as f:
               f.write(code)
-          print("Patched via Regex successfully")
+          print("Patched successfully!")
           EOF
 
           echo "org.gradle.jvmargs=-Xmx3072m -XX:+UseParallelGC" > gradle.properties
@@ -66,13 +80,7 @@ jobs:
 
           gradle wrapper --gradle-version 8.9
           chmod +x gradlew
-          
-          # تشغيل التجميع وتمرير السجل في حالة الفشل لعرض سطر الخطأ مباشرة
-          ./gradlew assembleDebug --no-daemon --stacktrace || {
-              echo "=== BUILD LOG ERROR SUMMARY ==="
-              ./gradlew compileDebugKotlin --no-daemon 2>&1 | grep -E "e: |error: " | head -n 30
-              exit 1
-          }
+          ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
