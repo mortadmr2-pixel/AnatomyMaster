@@ -22,268 +22,44 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Replace with Clean Code & Build APK
+      - name: Auto Download Icon & Build APK
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-          # كتابة كود نظيف وسليم 100% خالٍ من أي أخطاء لملف MainActivity.kt
-          cat << 'EOF' > app/src/main/java/com/example/anatomymaster/MainActivity.kt
-          @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-          package com.example.anatomymaster
+          # تنزيل وضبط أيقونة الهيكل العظمي تلقائياً
+          python3 - << 'EOF'
+          import urllib.request
+          import os
+          from PIL import Image
 
-          import android.os.Bundle
-          import androidx.activity.ComponentActivity
-          import androidx.activity.compose.setContent
-          import androidx.compose.foundation.layout.*
-          import androidx.compose.foundation.lazy.LazyColumn
-          import androidx.compose.foundation.lazy.items
-          import androidx.compose.material.icons.Icons
-          import androidx.compose.material.icons.filled.*
-          import androidx.compose.material3.*
-          import androidx.compose.runtime.*
-          import androidx.compose.ui.Alignment
-          import androidx.compose.ui.Modifier
-          import androidx.compose.ui.graphics.Color
-          import androidx.compose.ui.text.font.FontWeight
-          import androidx.compose.ui.unit.dp
-          import androidx.compose.ui.unit.sp
-
-          data class TopicItem(val title: String, val region: String, val desc: String)
-
-          class MainActivity : ComponentActivity() {
-              override fun onCreate(savedInstanceState: Bundle?) {
-                  super.onCreate(savedInstanceState)
-                  setContent {
-                      MaterialTheme {
-                          Surface(
-                              modifier = Modifier.fillMaxSize(),
-                              color = MaterialTheme.colorScheme.background
-                          ) {
-                              AnatomyApp()
-                          }
-                      }
-                  }
+          # رابط مباشر لتحميل نفس صورة الهيكل والقفص الصدري
+          url = "https://images.fineartamerica.com/images/artworkimages/mediumlarge/3/futuristic-human-skeleton-and-rib-cage-digital-anatomy-mark-taylor.jpg"
+          try:
+              headers = {'User-Agent': 'Mozilla/5.0'}
+              req = urllib.request.Request(url, headers=headers)
+              with urllib.request.urlopen(req) as resp, open("icon_temp.jpg", 'wb') as out:
+                  out.write(resp.read())
+              
+              img = Image.open("icon_temp.jpg").convert("RGBA")
+              sizes = {
+                  "mipmap-mdpi": 48,
+                  "mipmap-hdpi": 72,
+                  "mipmap-xhdpi": 96,
+                  "mipmap-xxhdpi": 144,
+                  "mipmap-xxxhdpi": 192
               }
-          }
-
-          @Composable
-          fun AnatomyApp() {
-              var currentScreen by remember { mutableStateOf("home") }
-              var selectedTopic by remember { mutableStateOf<TopicItem?>(null) }
-
-              val topics = remember {
-                  listOf(
-                      TopicItem("Upper Limb Anatomy", "Upper Limb", "Pectoral girdle, arm, forearm, hand bones and neurovasculature."),
-                      TopicItem("Lower Limb Anatomy", "Lower Limb", "Gluteal region, thigh, leg, foot and major nerve pathways."),
-                      TopicItem("Thoracic Cavity", "Thorax", "Heart, lungs, mediastinum, pleural cavities and vascular branches."),
-                      TopicItem("Abdomen & Pelvis", "Abdomen", "GI tract organs, kidneys, pelvic visceral anatomy and peritoneal folds."),
-                      TopicItem("Head & Neck", "Head & Neck", "Cranial nerves, facial muscles, skull osteology and cervical triangles."),
-                      TopicItem("Central Nervous System", "Neuroanatomy", "Brain lobes, brainstem, spinal cord tracts and ventricular system.")
-                  )
-              }
-
-              when (currentScreen) {
-                  "home" -> HomeScreen(
-                      topics = topics,
-                      onTopicClick = { topic ->
-                          selectedTopic = topic
-                          currentScreen = "detail"
-                      },
-                      onQuizClick = { currentScreen = "quiz" }
-                  )
-                  "detail" -> TopicDetailScreen(
-                      topic = selectedTopic,
-                      onBack = { currentScreen = "home" }
-                  )
-                  "quiz" -> QuizScreen(
-                      onBack = { currentScreen = "home" }
-                  )
-              }
-          }
-
-          @Composable
-          fun HomeScreen(topics: List<TopicItem>, onTopicClick: (TopicItem) -> Unit, onQuizClick: () -> Unit) {
-              Scaffold(
-                  topBar = {
-                      TopAppBar(
-                          title = { Text("Anatomy Master", fontWeight = FontWeight.Bold) },
-                          colors = TopAppBarDefaults.topAppBarColors(
-                              containerColor = MaterialTheme.colorScheme.primaryContainer,
-                              titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                          )
-                      )
-                  },
-                  floatingActionButton = {
-                      ExtendedFloatingActionButton(
-                          onClick = onQuizClick,
-                          icon = { Icon(Icons.Default.PlayArrow, contentDescription = null) },
-                          text = { Text("Clinical Quiz") }
-                      )
-                  }
-              ) { padding ->
-                  LazyColumn(
-                      modifier = Modifier
-                          .fillMaxSize()
-                          .padding(padding)
-                          .padding(16.dp),
-                      verticalArrangement = Arrangement.spacedBy(12.dp)
-                  ) {
-                      item {
-                          Text(
-                              text = "Select Regional Anatomy Module",
-                              fontSize = 18.sp,
-                              fontWeight = FontWeight.SemiBold,
-                              color = MaterialTheme.colorScheme.primary
-                          )
-                      }
-                      items(topics) { topic ->
-                          Card(
-                              modifier = Modifier.fillMaxWidth(),
-                              onClick = { onTopicClick(topic) },
-                              elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                          ) {
-                              Column(modifier = Modifier.padding(16.dp)) {
-                                  Text(text = topic.title, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                                  Spacer(modifier = Modifier.height(4.dp))
-                                  Text(text = topic.region, fontSize = 13.sp, color = Color.Gray)
-                                  Spacer(modifier = Modifier.height(6.dp))
-                                  Text(text = topic.desc, fontSize = 14.sp)
-                              }
-                          }
-                      }
-                  }
-              }
-          }
-
-          @Composable
-          fun TopicDetailScreen(topic: TopicItem?, onBack: () -> Unit) {
-              Scaffold(
-                  topBar = {
-                      TopAppBar(
-                          title = { Text(topic?.title ?: "Module Detail") },
-                          navigationIcon = {
-                              IconButton(onClick = onBack) {
-                                  Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                              }
-                          }
-                      )
-                  }
-              ) { padding ->
-                  Column(
-                      modifier = Modifier
-                          .fillMaxSize()
-                          .padding(padding)
-                          .padding(20.dp)
-                  ) {
-                      Text(text = topic?.title ?: "", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                      Spacer(modifier = Modifier.height(8.dp))
-                      AssistChip(
-                          onClick = {},
-                          label = { Text(topic?.region ?: "") }
-                      )
-                      Spacer(modifier = Modifier.height(16.dp))
-                      Text(text = topic?.desc ?: "", fontSize = 16.sp, lineHeight = 24.sp)
-                      Spacer(modifier = Modifier.height(24.dp))
-                      Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
-                          Text("Return to Chapters")
-                      }
-                  }
-              }
-          }
-
-          @Composable
-          fun QuizScreen(onBack: () -> Unit) {
-              val questions = remember {
-                  listOf(
-                      "Which nerve passes through the carpal tunnel?" to listOf("Median Nerve", "Ulnar Nerve", "Radial Nerve", "Axillary Nerve"),
-                      "The apex of the heart is primarily formed by:" to listOf("Left Ventricle", "Right Ventricle", "Left Atrium", "Right Atrium"),
-                      "Which muscle forms the primary boundary of the femoral triangle laterally?" to listOf("Sartorius", "Gracilis", "Adductor longus", "Rectus femoris")
-                  )
-              }
-              var qIndex by remember { mutableIntStateOf(0) }
-              var score by remember { mutableIntStateOf(0) }
-              var selectedOpt by remember { mutableStateOf<String?>(null) }
-              var isFinished by remember { mutableStateOf(false) }
-
-              Scaffold(
-                  topBar = {
-                      TopAppBar(
-                          title = { Text("Clinical Anatomy Quiz") },
-                          navigationIcon = {
-                              IconButton(onClick = onBack) {
-                                  Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                              }
-                          }
-                      )
-                  }
-              ) { padding ->
-                  Column(
-                      modifier = Modifier
-                          .fillMaxSize()
-                          .padding(padding)
-                          .padding(20.dp),
-                      verticalArrangement = Arrangement.spacedBy(16.dp)
-                  ) {
-                      if (!isFinished) {
-                          val (qText, options) = questions[qIndex]
-                          LinearProgressIndicator(
-                              progress = { (qIndex + 1).toFloat() / questions.size },
-                              modifier = Modifier.fillMaxWidth()
-                          )
-                          Text("Question ${qIndex + 1} of ${questions.size}", fontSize = 14.sp, color = Color.Gray)
-                          Text(qText, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-
-                          options.forEach { opt ->
-                              OutlinedButton(
-                                  onClick = { selectedOpt = opt },
-                                  modifier = Modifier.fillMaxWidth(),
-                                  colors = ButtonDefaults.outlinedButtonColors(
-                                      containerColor = if (selectedOpt == opt) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
-                                  )
-                              ) {
-                                  Text(opt, modifier = Modifier.padding(vertical = 4.dp))
-                              }
-                          }
-
-                          Spacer(modifier = Modifier.weight(1f))
-                          Button(
-                              onClick = {
-                                  if (selectedOpt == options[0]) score++
-                                  selectedOpt = null
-                                  if (qIndex + 1 < questions.size) {
-                                      qIndex++
-                                  } else {
-                                      isFinished = true
-                                  }
-                              },
-                              enabled = selectedOpt != null,
-                              modifier = Modifier.fillMaxWidth()
-                          ) {
-                              Text(if (qIndex + 1 < questions.size) "Next Question" else "Show Results")
-                          }
-                      } else {
-                          Column(
-                              modifier = Modifier.fillMaxSize(),
-                              verticalArrangement = Arrangement.Center,
-                              horizontalAlignment = Alignment.CenterHorizontally
-                          ) {
-                              Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(64.dp))
-                              Spacer(modifier = Modifier.height(16.dp))
-                              Text("Quiz Completed!", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                              Spacer(modifier = Modifier.height(8.dp))
-                              Text("Your Score: $score / ${questions.size}", fontSize = 18.sp)
-                              Spacer(modifier = Modifier.height(24.dp))
-                              Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
-                                  Text("Back to Dashboard")
-                              }
-                          }
-                      }
-                  }
-              }
-          }
+              for folder, sz in sizes.items():
+                  path = os.path.join("app/src/main/res", folder)
+                  os.makedirs(path, exist_ok=True)
+                  res = img.resize((sz, sz), Image.Resampling.LANCZOS)
+                  res.save(os.path.join(path, "ic_launcher.png"), "PNG")
+                  res.save(os.path.join(path, "ic_launcher_round.png"), "PNG")
+              print("Icon downloaded and applied successfully!")
+          except Exception as e:
+              print("Error applying icon:", e)
           EOF
 
-          # إعدادات الذاكرة والمترجم
+          # الحفاظ على إعدادات البناء الناجحة
           echo "org.gradle.jvmargs=-Xmx3072m -XX:+UseParallelGC" > gradle.properties
           echo "org.gradle.parallel=false" >> gradle.properties
           echo "kotlin.jvm.target.validation.mode=warning" >> gradle.properties
