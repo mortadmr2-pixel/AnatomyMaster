@@ -22,14 +22,12 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Auto Download Icon & Build APK
+      - name: Apply Anatomy Icon, Fix Code & Build APK
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-          # تثبيت مكتبة معالجة الصور لحل الخطأ
+          # 1. تثبيت مكتبة الصور وتحميل أيقونة الهيكل العظمي
           pip install Pillow
-
-          # تنزيل وضبط أيقونة الهيكل العظمي تلقائياً
           python3 - << 'EOF'
           import urllib.request
           import os
@@ -58,10 +56,222 @@ jobs:
                   res.save(os.path.join(path, "ic_launcher_round.png"), "PNG")
               print("Icon downloaded and applied successfully!")
           except Exception as e:
-              print("Error applying icon:", e)
+              print("Icon error:", e)
           EOF
 
-          # إعدادات البناء المستقرة
+          # 2. ضمان عدم وجود أخطاء في كود Kotlin (MainActivity.kt)
+          TARGET_FILE=$(find app/src/main/java -name "MainActivity.kt" | head -n 1)
+          if [ -n "$TARGET_FILE" ]; then
+            cat << 'EOF' > "$TARGET_FILE"
+          package com.example.anatomymaster
+
+          import android.os.Bundle
+          import androidx.activity.ComponentActivity
+          import androidx.activity.compose.setContent
+          import androidx.compose.foundation.background
+          import androidx.compose.foundation.clickable
+          import androidx.compose.foundation.layout.*
+          import androidx.compose.foundation.lazy.LazyColumn
+          import androidx.compose.foundation.lazy.items
+          import androidx.compose.foundation.shape.RoundedCornerShape
+          import androidx.compose.material3.*
+          import androidx.compose.runtime.*
+          import androidx.compose.ui.Alignment
+          import androidx.compose.ui.Modifier
+          import androidx.compose.ui.graphics.Color
+          import androidx.compose.ui.text.font.FontWeight
+          import androidx.compose.ui.unit.dp
+          import androidx.compose.ui.unit.sp
+
+          class MainActivity : ComponentActivity() {
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  setContent {
+                      MaterialTheme {
+                          AnatomyApp()
+                      }
+                  }
+              }
+          }
+
+          data class AnatomyTopic(val title: String, val description: String, val details: String)
+          data class QuizQuestion(val question: String, val options: List<String>, val correctAnswer: Int)
+
+          @OptIn(ExperimentalMaterial3Api::class)
+          @Composable
+          fun AnatomyApp() {
+              var currentScreen by remember { mutableStateOf("home") }
+              var selectedTopic by remember { mutableStateOf<AnatomyTopic?>(null) }
+
+              val topics = remember {
+                  listOf(
+                      AnatomyTopic("Thorax & Rib Cage", "Heart, Lungs, Mediastinum and Thoracic Wall.", "Detailed study of thoracic cavity, intercostal nerves, ribs and diaphragmatic attachments."),
+                      AnatomyTopic("Upper Limb", "Shoulder, Arm, Forearm, Hand and Brachial Plexus.", "Includes muscular attachments, brachial plexus innervation, and vascular supply."),
+                      AnatomyTopic("Lower Limb", "Gluteal region, Thigh, Leg, and Foot arches.", "Features lumbar/sacral plexuses, weight-bearing biomechanics and arterial trees."),
+                      AnatomyTopic("Head & Neck", "Cranial nerves, Skull bones, Meninges and Pharynx.", "Detailed overview of the 12 cranial nerves, facial triangles, and larynx structures.")
+                  )
+              }
+
+              Scaffold(
+                  topBar = {
+                      TopAppBar(
+                          title = { Text("Anatomy Master", fontWeight = FontWeight.Bold) },
+                          colors = TopAppBarDefaults.topAppBarColors(
+                              containerColor = Color(0xFF0F172A),
+                              titleContentColor = Color.White
+                          ),
+                          navigationIcon = {
+                              if (currentScreen != "home") {
+                                  TextButton(onClick = { currentScreen = "home" }) {
+                                      Text("Back", color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold)
+                                  }
+                              }
+                          }
+                      )
+                  }
+              ) { padding ->
+                  Box(
+                      modifier = Modifier
+                          .fillMaxSize()
+                          .padding(padding)
+                          .background(Color(0xFF0F172A))
+                  ) {
+                      when (currentScreen) {
+                          "home" -> HomeScreen(
+                              topics = topics,
+                              onTopicClick = { topic ->
+                                  selectedTopic = topic
+                                  currentScreen = "detail"
+                              },
+                              onQuizClick = { currentScreen = "quiz" }
+                          )
+                          "detail" -> selectedTopic?.let {
+                              DetailScreen(topic = it)
+                          }
+                          "quiz" -> QuizScreen(onFinish = { currentScreen = "home" })
+                      }
+                  }
+              }
+          }
+
+          @Composable
+          fun HomeScreen(
+              topics: List<AnatomyTopic>,
+              onTopicClick: (AnatomyTopic) -> Unit,
+              onQuizClick: () -> Unit
+          ) {
+              LazyColumn(
+                  modifier = Modifier.fillMaxSize().padding(16.dp),
+                  verticalArrangement = Arrangement.spacedBy(14.dp)
+              ) {
+                  item {
+                      Button(
+                          onClick = onQuizClick,
+                          modifier = Modifier.fillMaxWidth().height(56.dp),
+                          colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
+                          shape = RoundedCornerShape(12.dp)
+                      ) {
+                          Text("Start Anatomy Quiz 🎯", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                      }
+                      Spacer(modifier = Modifier.height(10.dp))
+                      Text("High-Yield Anatomy Modules", color = Color(0xFF94A3B8), fontSize = 14.sp)
+                  }
+                  items(topics) { topic ->
+                      Card(
+                          shape = RoundedCornerShape(14.dp),
+                          colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                          modifier = Modifier
+                              .fillMaxWidth()
+                              .clickable { onTopicClick(topic) }
+                      ) {
+                          Column(modifier = Modifier.padding(18.dp)) {
+                              Text(topic.title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF38BDF8))
+                              Spacer(modifier = Modifier.height(6.dp))
+                              Text(topic.description, fontSize = 14.sp, color = Color(0xFFCBD5E1))
+                          }
+                      }
+                  }
+              }
+          }
+
+          @Composable
+          fun DetailScreen(topic: AnatomyTopic) {
+              Column(
+                  modifier = Modifier
+                      .fillMaxSize()
+                      .padding(20.dp)
+              ) {
+                  Text(topic.title, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFF38BDF8))
+                  Spacer(modifier = Modifier.height(16.dp))
+                  Card(
+                      shape = RoundedCornerShape(14.dp),
+                      colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                      modifier = Modifier.fillMaxWidth()
+                  ) {
+                      Text(
+                          topic.details,
+                          fontSize = 16.sp,
+                          color = Color.White,
+                          lineHeight = 24.sp,
+                          modifier = Modifier.padding(20.dp)
+                      )
+                  }
+              }
+          }
+
+          @Composable
+          fun QuizScreen(onFinish: () -> Unit) {
+              val questions = remember {
+                  listOf(
+                      QuizQuestion("Which nerve passes through the Carpal Tunnel?", listOf("Ulnar Nerve", "Median Nerve", "Radial Nerve", "Axillary Nerve"), 1),
+                      QuizQuestion("Which structure pierces the central tendon of diaphragm?", listOf("Aorta", "Inferior Vena Cava", "Esophagus", "Sympathetic Trunk"), 1),
+                      QuizQuestion("The anterior cruciate ligament (ACL) attaches to which bone?", listOf("Femur & Tibia", "Femur & Fibula", "Patella & Tibia", "Pelvis & Femur"), 0)
+                  )
+              }
+              var qIndex by remember { mutableStateOf(0) }
+              var score by remember { mutableStateOf(0) }
+              var quizCompleted by remember { mutableStateOf(false) }
+
+              if (quizCompleted) {
+                  Column(
+                      modifier = Modifier.fillMaxSize().padding(24.dp),
+                      verticalArrangement = Arrangement.Center,
+                      horizontalAlignment = Alignment.CenterHorizontally
+                  ) {
+                      Text("Quiz Completed! 🎉", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFF38BDF8))
+                      Spacer(modifier = Modifier.height(12.dp))
+                      Text("Your Score: $score / ${questions.size}", fontSize = 20.sp, color = Color.White)
+                      Spacer(modifier = Modifier.height(24.dp))
+                      Button(onClick = onFinish, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))) {
+                          Text("Return to Modules", color = Color.White)
+                      }
+                  }
+              } else {
+                  val currentQ = questions[qIndex]
+                  Column(modifier = Modifier.fillMaxSize().padding(20.dp)) {
+                      Text("Question ${qIndex + 1} of ${questions.size}", color = Color(0xFF94A3B8), fontSize = 14.sp)
+                      Spacer(modifier = Modifier.height(10.dp))
+                      Text(currentQ.question, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                      Spacer(modifier = Modifier.height(20.dp))
+                      currentQ.options.forEachIndexed { idx, opt ->
+                          OutlinedButton(
+                              onClick = {
+                                  if (idx == currentQ.correctAnswer) score++
+                                  if (qIndex + 1 < questions.size) qIndex++ else quizCompleted = true
+                              },
+                              modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                              shape = RoundedCornerShape(10.dp)
+                          ) {
+                              Text(opt, color = Color(0xFF38BDF8), fontSize = 16.sp, modifier = Modifier.padding(6.dp))
+                          }
+                      }
+                  }
+              }
+          }
+          EOF
+          fi
+
+          # 3. بناء المشروع بأمان تام
           echo "org.gradle.jvmargs=-Xmx3072m -XX:+UseParallelGC" > gradle.properties
           echo "org.gradle.parallel=false" >> gradle.properties
           echo "kotlin.jvm.target.validation.mode=warning" >> gradle.properties
