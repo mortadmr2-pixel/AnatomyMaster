@@ -26,46 +26,50 @@ jobs:
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-          # 1. تثبيت Pillow وتحميل الصورة مع التأكد من حفظها
+          # 1. تثبيت Pillow وتحميل الصورة وضبط الأيقونات
           pip install Pillow requests
           python3 - << 'EOF'
           import requests
           import os
           from PIL import Image
 
-          # رابط مباشر لصورة القفص الصدري التشريحي
           url = "https://images.fineartamerica.com/images/artworkimages/mediumlarge/3/futuristic-human-skeleton-and-rib-cage-digital-anatomy-mark-taylor.jpg"
           headers = {'User-Agent': 'Mozilla/5.0'}
-          r = requests.get(url, headers=headers, timeout=20)
+          r = requests.get(url, headers=headers, timeout=25)
           with open("icon_raw.jpg", "wb") as f:
               f.write(r.content)
 
           img = Image.open("icon_raw.jpg").convert("RGBA")
 
-          # توليد الأيقونات الكلاسيكية لجميع الشاشات
+          # توليد صور PNG لكل أحجام الشاشات
           densities = {
-              "mipmap-mdpi": 48,
-              "mipmap-hdpi": 72,
-              "mipmap-xhdpi": 96,
-              "mipmap-xxhdpi": 144,
-              "mipmap-xxxhdpi": 192,
-              "drawable": 512
+              "mipmap-mdpi": (48, 108),
+              "mipmap-hdpi": (72, 162),
+              "mipmap-xhdpi": (96, 216),
+              "mipmap-xxhdpi": (144, 324),
+              "mipmap-xxxhdpi": (192, 432)
           }
-          for folder, sz in densities.items():
+
+          for folder, (legacy_sz, fg_sz) in densities.items():
               target_dir = os.path.join("app/src/main/res", folder)
               os.makedirs(target_dir, exist_ok=True)
-              res = img.resize((sz, sz), Image.Resampling.LANCZOS)
-              res.save(os.path.join(target_dir, "ic_launcher.png"), "PNG")
-              res.save(os.path.join(target_dir, "ic_launcher_round.png"), "PNG")
-              res.save(os.path.join(target_dir, "ic_launcher_foreground.png"), "PNG")
+              
+              # أيقونة عادية ودائرية
+              legacy = img.resize((legacy_sz, legacy_sz), Image.Resampling.LANCZOS)
+              legacy.save(os.path.join(target_dir, "ic_launcher.png"), "PNG")
+              legacy.save(os.path.join(target_dir, "ic_launcher_round.png"), "PNG")
+              
+              # واجهة الأيقونة المتكيفة لأندرويد الحديث
+              fg = img.resize((fg_sz, fg_sz), Image.Resampling.LANCZOS)
+              fg.save(os.path.join(target_dir, "ic_launcher_foreground.png"), "PNG")
 
-          # 2. إنشاء Adaptive Icon رسمي يتوافق مع One UI وسامسونج (anydpi-v26)
+          # 2. إنشاء Adaptive Icon بألوان نظام أندرويد المعرفة مسبقاً
           v26_dir = "app/src/main/res/mipmap-anydpi-v26"
           os.makedirs(v26_dir, exist_ok=True)
 
           adaptive_xml = '''<?xml version="1.0" encoding="utf-8"?>
           <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-              <background android:drawable="@color/black" />
+              <background android:drawable="@android:color/black" />
               <foreground android:drawable="@mipmap/ic_launcher_foreground" />
           </adaptive-icon>'''
 
@@ -74,7 +78,7 @@ jobs:
           with open(os.path.join(v26_dir, "ic_launcher_round.xml"), "w") as f:
               f.write(adaptive_xml)
 
-          print("Successfully generated both Legacy and Adaptive Android Icons!")
+          print("Successfully built all icons!")
           EOF
 
           # 3. التأكد من كود التطبيق في MainActivity
@@ -289,7 +293,7 @@ jobs:
           EOF
           fi
 
-          # 4. إعدادات Gradle وضمان بناء سليم
+          # 4. إعدادات Gradle وتوليد APK
           echo "org.gradle.jvmargs=-Xmx3072m -XX:+UseParallelGC" > gradle.properties
           echo "org.gradle.parallel=false" >> gradle.properties
           echo "kotlin.jvm.target.validation.mode=warning" >> gradle.properties
