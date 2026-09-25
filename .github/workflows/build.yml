@@ -11,6 +11,14 @@ jobs:
       - name: Extract Project ZIP
         run: unzip -o AnatomyMaster_FINAL_Android.zip
 
-      - name: Print Code
+      - name: Print Broken Lines Only
         run: |
-          cat app/src/main/java/com/example/anatomymaster/MainActivity.kt
+          FILE="app/src/main/java/com/example/anatomymaster/MainActivity.kt"
+          echo "=== 1. Check Line 335 to 355 ==="
+          nl -ba "$FILE" | sed -n '335,355p'
+
+          echo "=== 2. Check Line 425 to 450 ==="
+          nl -ba "$FILE" | sed -n '425,450p'
+
+          echo "=== 3. Check Line 510 to 525 ==="
+          nl -ba "$FILE" | sed -n '510,525p'
