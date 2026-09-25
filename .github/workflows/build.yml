@@ -22,48 +22,54 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Embed Custom Anatomy Icon & Build APK
+      - name: Draw Custom Anatomy Icon & Build APK
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
           pip install Pillow
 
-          # 1. كتابة بيانات الصورة الأصلية مباشرة داخل السيرفر
-          cat << 'EOF' > icon_b64.txt
-          /9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0a
-          HBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIy
-          MjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAEAAQADASIA
-          AhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQA
-          AAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3
-          ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWm
-          p6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEA
-          AwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSEx
-          BhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElK
-          U1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3
-          uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD3+iii
-          gAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKA
-          CiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAK
-          KKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAoo
-          ooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiii
-          gAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKA
-          CiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAK
-          KKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAoo
-          ooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/Z
-          EOF
-
-          # 2. فك التشفير وتوليد مقاسات أيقونة الأندرويد الرسمية
+          # توليد أيقونة القفص الصدري التشريحي برمجياً
           python3 - << 'EOF'
-          import base64
-          import io
           import os
-          from PIL import Image
+          from PIL import Image, ImageDraw
 
-          with open("icon_b64.txt", "r") as f:
-              data = f.read().strip()
+          size = 512
+          img = Image.new("RGBA", (size, size), (11, 19, 43, 255))
+          draw = ImageDraw.Draw(img)
 
-          img_data = base64.b64decode(data)
-          img = Image.open(io.BytesIO(img_data)).convert("RGBA")
+          # خلفية دائرية متدرجة وتأثير تقني
+          draw.rounded_rectangle([0, 0, size, size], radius=110, fill=(11, 19, 43))
+          draw.ellipse([80, 80, 432, 432], fill=(20, 32, 60))
 
+          # رسم العمود الفقري (Vertebral Column)
+          for y in range(60, 470, 35):
+              draw.rounded_rectangle([236, y, 276, y + 22], radius=6, fill=(180, 205, 235), outline=(72, 202, 228), width=2)
+
+          # رسم عظم القص (Sternum)
+          draw.polygon([(244, 120), (268, 120), (262, 260), (256, 280), (250, 260)], fill=(225, 238, 255), outline=(72, 202, 228))
+
+          # رسم الأضلاع التشريحية (Thoracic Ribs) مع انحناء وتوهج
+          rib_levels = [
+              (140, 110, 30),
+              (180, 150, 45),
+              (225, 175, 55),
+              (270, 185, 60),
+              (315, 170, 60),
+              (360, 145, 55),
+              (405, 115, 45)
+          ]
+
+          for cy, span_x, drop_y in rib_levels:
+              # الضلع الأيمن
+              draw.arc([256 - span_x, cy - drop_y, 256, cy + drop_y], start=280, end=75, fill=(72, 202, 228), width=7)
+              # الضلع الأيسر
+              draw.arc([256, cy - drop_y, 256 + span_x, cy + drop_y], start=105, end=260, fill=(72, 202, 228), width=7)
+
+          # عظام الترقوة (Clavicles)
+          draw.line([(110, 100), (256, 125)], fill=(220, 240, 255), width=8)
+          draw.line([(402, 100), (256, 125)], fill=(220, 240, 255), width=8)
+
+          # توزيع مقاسات الأيقونة لجميع كثافات الشاشة
           densities = {
               "mipmap-mdpi": (48, 108),
               "mipmap-hdpi": (72, 162),
@@ -82,7 +88,7 @@ jobs:
               fg = img.resize((fg_sz, fg_sz), Image.Resampling.LANCZOS)
               fg.save(os.path.join(target_dir, "ic_launcher_foreground.png"), "PNG")
 
-          # إعداد Adaptive Icon المتوافق مع واجهات One UI الحديثة
+          # إنشاء ملفات الأيقونة المتكيفة لأنظمة أندرويد الحديثة
           v26_dir = "app/src/main/res/mipmap-anydpi-v26"
           os.makedirs(v26_dir, exist_ok=True)
           adaptive_xml = '''<?xml version="1.0" encoding="utf-8"?>
@@ -96,10 +102,10 @@ jobs:
           with open(os.path.join(v26_dir, "ic_launcher_round.xml"), "w") as f:
               f.write(adaptive_xml)
 
-          print("Custom Anatomy Icon installed perfectly!")
+          print("Generated custom Thorax Ribs icon successfully!")
           EOF
 
-          # 3. التأكد من كود واجهة التطبيق في MainActivity
+          # الحفاظ على كود MainActivity دون مشاكل تجريبية
           TARGET_FILE=$(find app/src/main/java -name "MainActivity.kt" | head -n 1)
           if [ -n "$TARGET_FILE" ]; then
             cat << 'EOF' > "$TARGET_FILE"
@@ -311,7 +317,6 @@ jobs:
           EOF
           fi
 
-          # 4. بناء المشروع
           echo "org.gradle.jvmargs=-Xmx3072m -XX:+UseParallelGC" > gradle.properties
           echo "org.gradle.parallel=false" >> gradle.properties
           echo "kotlin.jvm.target.validation.mode=warning" >> gradle.properties
