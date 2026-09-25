@@ -11,39 +11,12 @@ jobs:
       - name: Extract Project ZIP
         run: unzip -o AnatomyMaster_FINAL_Android.zip
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: '8.9'
-
-      - name: Show Kotlin Error Details
+      - name: Print Broken Code
         run: |
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-
-          echo "org.gradle.jvmargs=-Xmx3072m -XX:+UseParallelGC" > gradle.properties
-          echo "org.gradle.parallel=false" >> gradle.properties
-          echo "kotlin.jvm.target.validation.mode=warning" >> gradle.properties
-          echo "android.useAndroidX=true" >> gradle.properties
-
-          gradle wrapper --gradle-version 8.9
-          chmod +x gradlew
-
-          # تشغيل التجميع وتخزين التقرير بالكامل
-          ./gradlew compileDebugKotlin --no-daemon > build_errors.log 2>&1 || true
-
-          echo "==================== KOTLIN ERRORS START ===================="
-          grep -E "e: |error: |Unresolved reference" build_errors.log | head -n 30 || cat build_errors.log | tail -n 40
-          echo "==================== KOTLIN ERRORS END ===================="
-
-      - name: Upload Error Log
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: Kotlin-Build-Errors
-          path: build_errors.log
+          FILE="app/src/main/java/com/example/anatomymaster/MainActivity.kt"
+          echo "===== SECTION 1 (Lines 330-360) ====="
+          sed -n '330,360p' "$FILE"
+          echo "===== SECTION 2 (Lines 420-460) ====="
+          sed -n '420,460p' "$FILE"
+          echo "===== SECTION 3 (Lines 505-530) ====="
+          sed -n '505,530p' "$FILE"
