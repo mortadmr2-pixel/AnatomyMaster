@@ -26,47 +26,58 @@ jobs:
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-          # 1. إزالة الأيقونة القديمة التكيفية التي تفرض صورة الروبوت
-          rm -rf app/src/main/res/mipmap-anydpi-v26
-          rm -rf app/src/main/res/mipmap-anydpi
-
-          # 2. تثبيت Pillow وتوليد الأيقونة بصيغة PNG لكل المقاسات
-          pip install Pillow
+          # 1. تثبيت Pillow وتحميل الصورة مع التأكد من حفظها
+          pip install Pillow requests
           python3 - << 'EOF'
-          import urllib.request
+          import requests
           import os
           from PIL import Image
 
+          # رابط مباشر لصورة القفص الصدري التشريحي
           url = "https://images.fineartamerica.com/images/artworkimages/mediumlarge/3/futuristic-human-skeleton-and-rib-cage-digital-anatomy-mark-taylor.jpg"
-          try:
-              headers = {'User-Agent': 'Mozilla/5.0'}
-              req = urllib.request.Request(url, headers=headers)
-              with urllib.request.urlopen(req) as resp, open("icon_temp.jpg", 'wb') as out:
-                  out.write(resp.read())
-              
-              img = Image.open("icon_temp.jpg").convert("RGBA")
-              
-              # استبدال الأيقونات في جميع المجلدات بدون استثناء
-              sizes = {
-                  "mipmap-mdpi": 48,
-                  "mipmap-hdpi": 72,
-                  "mipmap-xhdpi": 96,
-                  "mipmap-xxhdpi": 144,
-                  "mipmap-xxxhdpi": 192,
-                  "drawable": 192
-              }
-              for folder, sz in sizes.items():
-                  path = os.path.join("app/src/main/res", folder)
-                  os.makedirs(path, exist_ok=True)
-                  res = img.resize((sz, sz), Image.Resampling.LANCZOS)
-                  res.save(os.path.join(path, "ic_launcher.png"), "PNG")
-                  res.save(os.path.join(path, "ic_launcher_round.png"), "PNG")
-              print("All app icons successfully replaced with Anatomy Skeleton!")
-          except Exception as e:
-              print("Icon error:", e)
+          headers = {'User-Agent': 'Mozilla/5.0'}
+          r = requests.get(url, headers=headers, timeout=20)
+          with open("icon_raw.jpg", "wb") as f:
+              f.write(r.content)
+
+          img = Image.open("icon_raw.jpg").convert("RGBA")
+
+          # توليد الأيقونات الكلاسيكية لجميع الشاشات
+          densities = {
+              "mipmap-mdpi": 48,
+              "mipmap-hdpi": 72,
+              "mipmap-xhdpi": 96,
+              "mipmap-xxhdpi": 144,
+              "mipmap-xxxhdpi": 192,
+              "drawable": 512
+          }
+          for folder, sz in densities.items():
+              target_dir = os.path.join("app/src/main/res", folder)
+              os.makedirs(target_dir, exist_ok=True)
+              res = img.resize((sz, sz), Image.Resampling.LANCZOS)
+              res.save(os.path.join(target_dir, "ic_launcher.png"), "PNG")
+              res.save(os.path.join(target_dir, "ic_launcher_round.png"), "PNG")
+              res.save(os.path.join(target_dir, "ic_launcher_foreground.png"), "PNG")
+
+          # 2. إنشاء Adaptive Icon رسمي يتوافق مع One UI وسامسونج (anydpi-v26)
+          v26_dir = "app/src/main/res/mipmap-anydpi-v26"
+          os.makedirs(v26_dir, exist_ok=True)
+
+          adaptive_xml = '''<?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@color/black" />
+              <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+          </adaptive-icon>'''
+
+          with open(os.path.join(v26_dir, "ic_launcher.xml"), "w") as f:
+              f.write(adaptive_xml)
+          with open(os.path.join(v26_dir, "ic_launcher_round.xml"), "w") as f:
+              f.write(adaptive_xml)
+
+          print("Successfully generated both Legacy and Adaptive Android Icons!")
           EOF
 
-          # 3. التأكد من سلامة ملف كود MainActivity
+          # 3. التأكد من كود التطبيق في MainActivity
           TARGET_FILE=$(find app/src/main/java -name "MainActivity.kt" | head -n 1)
           if [ -n "$TARGET_FILE" ]; then
             cat << 'EOF' > "$TARGET_FILE"
@@ -278,7 +289,7 @@ jobs:
           EOF
           fi
 
-          # 4. إعدادات Gradle والبناء
+          # 4. إعدادات Gradle وضمان بناء سليم
           echo "org.gradle.jvmargs=-Xmx3072m -XX:+UseParallelGC" > gradle.properties
           echo "org.gradle.parallel=false" >> gradle.properties
           echo "kotlin.jvm.target.validation.mode=warning" >> gradle.properties
