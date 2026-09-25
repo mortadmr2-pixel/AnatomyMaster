@@ -11,12 +11,66 @@ jobs:
       - name: Extract Project ZIP
         run: unzip -o AnatomyMaster_FINAL_Android.zip
 
-      - name: Print Broken Code
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.9'
+
+      - name: Fix Code & Build APK
         run: |
-          FILE="app/src/main/java/com/example/anatomymaster/MainActivity.kt"
-          echo "===== SECTION 1 (Lines 330-360) ====="
-          sed -n '330,360p' "$FILE"
-          echo "===== SECTION 2 (Lines 420-460) ====="
-          sed -n '420,460p' "$FILE"
-          echo "===== SECTION 3 (Lines 505-530) ====="
-          sed -n '505,530p' "$FILE"
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+          # تصحيح الأخطاء البرمجية تلقائياً في MainActivity.kt
+          python3 - << 'EOF'
+          file_path = "app/src/main/java/com/example/anatomymaster/MainActivity.kt"
+          with open(file_path, "r", encoding="utf-8") as f:
+              content = f.read()
+
+          # 1. إضافة استيراد items و OptIn في البداية
+          import_fix = """@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+          package com.example.anatomymaster
+
+          import androidx.compose.foundation.lazy.items
+          """
+          content = content.replace("package com.example.anatomymaster", import_fix, 1)
+
+          # 2. تصحيح NavigationBarItem والأقواس الزائدة
+          content = content.replace("NavigationBarItem(true, {}, {},", "NavigationBarItem(selected = true, onClick = {},")
+          content = content.replace("NavigationBarItem(false, {}, onQuiz,", "NavigationBarItem(selected = false, onClick = onQuiz,")
+          content = content.replace("NavigationBarItem(false, {}, onProgress,", "NavigationBarItem(selected = false, onClick = onProgress,")
+
+          # 3. تصحيح الأقواس المزدوجة في Quiz
+          content = content.replace("{{selected=i; if(i==q.answer) score++}} else {{}}", "{ selected=i; if(i==q.answer) score++ }")
+
+          # 4. إزالة القوس الزائد قبل @Composable fun Home
+          content = content.replace("}\n}\n}\n}\n\n@Composable\nfun Home", "}\n}\n}\n\n@Composable\nfun Home")
+
+          # 5. تصحيح الأقواس الزائدة في نهاية Home
+          content = content.replace("}\n}\n}\n}\n}\n\nfun iconFor", "}\n}\n}\n}\n\nfun iconFor")
+
+          with open(file_path, "w", encoding="utf-8") as f:
+              f.write(content)
+          print("MainActivity.kt repaired successfully!")
+          EOF
+
+          # إعدادات بيئة الأندرويد والذاكرة
+          echo "org.gradle.jvmargs=-Xmx3072m -XX:+UseParallelGC" > gradle.properties
+          echo "org.gradle.parallel=false" >> gradle.properties
+          echo "kotlin.jvm.target.validation.mode=warning" >> gradle.properties
+          echo "android.useAndroidX=true" >> gradle.properties
+
+          gradle wrapper --gradle-version 8.9
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AnatomyMaster-APK
+          path: app/build/outputs/apk/debug/*.apk
