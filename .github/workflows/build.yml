@@ -22,36 +22,26 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Optimize Memory and Build APK
+      - name: Print Exact Kotlin Errors and Build
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-          # ضبط استهلاك الذاكرة ومنع انهيار JVM
           echo "org.gradle.jvmargs=-Xmx3072m -XX:+UseParallelGC" > gradle.properties
           echo "org.gradle.parallel=false" >> gradle.properties
           echo "kotlin.jvm.target.validation.mode=warning" >> gradle.properties
           echo "android.useAndroidX=true" >> gradle.properties
 
-          # تفعيل السماح بالميزات التجريبية
-          MAIN_KT="app/src/main/java/com/example/anatomymaster/MainActivity.kt"
-          if [ -f "$MAIN_KT" ]; then
-            sed -i '1s/^/@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)\n/' "$MAIN_KT"
-          fi
-
-          if [ -f "app/build.gradle.kts" ]; then
-            sed -i 's/compileSdk = [0-9]*/compileSdk = 35/g' app/build.gradle.kts
-            sed -i 's/targetSdk = [0-9]*/targetSdk = 35/g' app/build.gradle.kts
-            sed -i '/defaultConfig {/a \        multiDexEnabled = true' app/build.gradle.kts
-            echo 'tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach { kotlinOptions { allWarningsAsErrors = false; freeCompilerArgs += listOf("-opt-in=androidx.compose.material3.ExperimentalMaterial3Api") } }' >> app/build.gradle.kts
-          fi
-
           gradle wrapper --gradle-version 8.9
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
 
-      - name: Upload APK Artifact
+          # تشغيل البناء واستخراج أسطر الخطأ البرمجي الدقيقة
+          ./gradlew compileDebugKotlin --no-daemon 2>&1 | tee compile_log.txt || true
+          echo "==================== KOTLIN ERRORS ===================="
+          grep -E "e: |error:" compile_log.txt | head -n 20
+
+      - name: Upload Compile Log
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: AnatomyMaster-APK
-          path: app/build/outputs/apk/debug/*.apk
+          name: Kotlin-Compile-Log
+          path: compile_log.txt
