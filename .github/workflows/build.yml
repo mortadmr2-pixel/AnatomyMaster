@@ -22,55 +22,43 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Fix Code & Build APK
+      - name: Patch and Build APK
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
           python3 - << 'EOF'
+          import re
+
           file_path = "app/src/main/java/com/example/anatomymaster/MainActivity.kt"
           with open(file_path, "r", encoding="utf-8") as f:
-              lines = f.readlines()
+              code = f.read()
 
-          # إضافة الاستيراد اللازم لـ items و OptIn في السطر الأول
-          header = "@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)\npackage com.example.anatomymaster\n\nimport androidx.compose.foundation.lazy.items\n"
+          # 1. تصحيح ترويسة الملف والاستيرادات
+          if "@file:OptIn" not in code:
+              code = "@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)\n" + code
           
-          new_lines = []
-          for line in lines:
-              # استبدال سطر الحزمة بإضافة الاستيرادات
-              if line.startswith("package com.example.anatomymaster"):
-                  new_lines.append(header)
-                  continue
+          if "import androidx.compose.foundation.lazy.items" not in code:
+              code = code.replace("package com.example.anatomymaster", "package com.example.anatomymaster\n\nimport androidx.compose.foundation.lazy.items", 1)
 
-              # 1. إزالة القوس الزائد عند السطر 339
-              if line.strip() == "}" and len(new_lines) > 330 and len(new_lines) < 345:
-                  if new_lines[-1].strip() == "}":
-                      continue
+          # 2. إزالة القوس الزائد قبل @Composable fun Home
+          code = re.sub(r'(\}\s*)+\n+@Composable\s+fun Home', '}\n}\n}\n\n@Composable\nfun Home', code)
 
-              # 2. تصحيح وسائط NavigationBarItem (الأسطر 348-350)
-              if "NavigationBarItem(true, {}, {}," in line:
-                  line = line.replace("NavigationBarItem(true, {}, {},", "NavigationBarItem(selected = true, onClick = {},")
-              if "NavigationBarItem(false, {}, onQuiz," in line:
-                  line = line.replace("NavigationBarItem(false, {}, onQuiz,", "NavigationBarItem(selected = false, onClick = onQuiz,")
-              if "NavigationBarItem(false, {}, onProgress," in line:
-                  line = line.replace("NavigationBarItem(false, {}, onProgress,", "NavigationBarItem(selected = false, onClick = onProgress,")
+          # 3. تصحيح وسائط NavigationBarItem
+          code = re.sub(r'NavigationBarItem\(\s*true\s*,\s*\{\s*\}\s*,\s*\{\s*\}\s*,', 'NavigationBarItem(selected = true, onClick = {},', code)
+          code = re.sub(r'NavigationBarItem\(\s*false\s*,\s*\{\s*\}\s*,\s*onQuiz\s*,', 'NavigationBarItem(selected = false, onClick = onQuiz,', code)
+          code = re.sub(r'NavigationBarItem\(\s*false\s*,\s*\{\s*\}\s*,\s*onProgress\s*,', 'NavigationBarItem(selected = false, onClick = onProgress,', code)
 
-              # 3. تصحيح القوس الزائد قبل fun iconFor عند السطر 446
-              if line.strip() == "}" and len(new_lines) > 435 and len(new_lines) < 455:
-                  if new_lines[-1].strip() == "}":
-                      continue
+          # 4. تصحيح القوس الزائد قبل fun iconFor
+          code = re.sub(r'(\}\s*)+\n+fun iconFor', '}\n}\n}\n}\n\nfun iconFor', code)
 
-              # 4. تصحيح كود الـ onClick في شاشة الاختبار (السطر 515)
-              if "if(selected==null) {{selected=i;" in line:
-                  line = "                            if (selected == null) { selected = i; if (i == q.answer) score++ }\n"
-
-              new_lines.append(line)
+          # 5. تصحيح استدعاء onClick في شاشة Quiz
+          code = re.sub(r'\{\s*if\s*\(selected\s*==\s*null\)\s*\{\{.*?\}\}\s*else\s*\{\{\}\}\s*\}', '{ if (selected == null) { selected = i; if (i == q.answer) score++ } }', code)
 
           with open(file_path, "w", encoding="utf-8") as f:
-              f.writelines(new_lines)
-          print("Patched MainActivity.kt successfully!")
+              f.write(code)
+          print("Patched via Regex successfully")
           EOF
 
-          # ضبط إعدادات الذاكرة والمترجم
           echo "org.gradle.jvmargs=-Xmx3072m -XX:+UseParallelGC" > gradle.properties
           echo "org.gradle.parallel=false" >> gradle.properties
           echo "kotlin.jvm.target.validation.mode=warning" >> gradle.properties
@@ -78,10 +66,17 @@ jobs:
 
           gradle wrapper --gradle-version 8.9
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          
+          # تشغيل التجميع وتمرير السجل في حالة الفشل لعرض سطر الخطأ مباشرة
+          ./gradlew assembleDebug --no-daemon --stacktrace || {
+              echo "=== BUILD LOG ERROR SUMMARY ==="
+              ./gradlew compileDebugKotlin --no-daemon 2>&1 | grep -E "e: |error: " | head -n 30
+              exit 1
+          }
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
+        if: success()
         with:
           name: AnatomyMaster-APK
           path: app/build/outputs/apk/debug/*.apk
