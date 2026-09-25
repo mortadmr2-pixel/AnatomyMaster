@@ -22,26 +22,28 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Patch Experimental API and Build APK
+      - name: Show Kotlin Error Details
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-          # إعدادات الذاكرة وتخطي تحذيرات JVM
           echo "org.gradle.jvmargs=-Xmx3072m -XX:+UseParallelGC" > gradle.properties
           echo "org.gradle.parallel=false" >> gradle.properties
           echo "kotlin.jvm.target.validation.mode=warning" >> gradle.properties
           echo "android.useAndroidX=true" >> gradle.properties
 
-          # إضافة تصريح الواجهات التجريبية لجميع ملفات Kotlin تلقائياً
-          find app/src/main/java -name "*.kt" -exec sed -i '1i @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)' {} +
-
           gradle wrapper --gradle-version 8.9
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
 
-      - name: Upload APK Artifact
+          # تشغيل التجميع وتخزين التقرير بالكامل
+          ./gradlew compileDebugKotlin --no-daemon > build_errors.log 2>&1 || true
+
+          echo "==================== KOTLIN ERRORS START ===================="
+          grep -E "e: |error: |Unresolved reference" build_errors.log | head -n 30 || cat build_errors.log | tail -n 40
+          echo "==================== KOTLIN ERRORS END ===================="
+
+      - name: Upload Error Log
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: AnatomyMaster-APK
-          path: app/build/outputs/apk/debug/*.apk
+          name: Kotlin-Build-Errors
+          path: build_errors.log
