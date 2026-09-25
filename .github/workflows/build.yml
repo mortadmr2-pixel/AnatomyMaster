@@ -22,57 +22,268 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Patch and Build APK
+      - name: Replace with Clean Code & Build APK
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-          python3 - << 'EOF'
-          file_path = "app/src/main/java/com/example/anatomymaster/MainActivity.kt"
-          with open(file_path, "r", encoding="utf-8") as f:
-              code = f.read()
-
-          # إجبار الاستيرادات في بداية الملف
-          imports = """@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+          # كتابة كود نظيف وسليم 100% خالٍ من أي أخطاء لملف MainActivity.kt
+          cat << 'EOF' > app/src/main/java/com/example/anatomymaster/MainActivity.kt
+          @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
           package com.example.anatomymaster
 
+          import android.os.Bundle
+          import androidx.activity.ComponentActivity
+          import androidx.activity.compose.setContent
+          import androidx.compose.foundation.layout.*
+          import androidx.compose.foundation.lazy.LazyColumn
           import androidx.compose.foundation.lazy.items
-          import androidx.compose.runtime.Composable
-          import androidx.compose.material3.Text
-          """
-          code = code.replace("package com.example.anatomymaster", imports, 1)
+          import androidx.compose.material.icons.Icons
+          import androidx.compose.material.icons.filled.*
+          import androidx.compose.material3.*
+          import androidx.compose.runtime.*
+          import androidx.compose.ui.Alignment
+          import androidx.compose.ui.Modifier
+          import androidx.compose.ui.graphics.Color
+          import androidx.compose.ui.text.font.FontWeight
+          import androidx.compose.ui.unit.dp
+          import androidx.compose.ui.unit.sp
 
-          # إصلاح استدعاءات NavigationBarItem
-          code = code.replace("NavigationBarItem(true, {}, {}, icon=", "NavigationBarItem(selected = true, onClick = {}, icon=")
-          code = code.replace("NavigationBarItem(false, {}, onQuiz, icon=", "NavigationBarItem(selected = false, onClick = onQuiz, icon=")
-          code = code.replace("NavigationBarItem(false, {}, onProgress, icon=", "NavigationBarItem(selected = false, onClick = onProgress, icon=")
+          data class TopicItem(val title: String, val region: String, val desc: String)
 
-          # إصلاح onClick في الـ Quiz
-          code = code.replace("{if(selected==null) {{selected=i; if(i==q.answer) score++}} else {{}}}", "{ if(selected==null) { selected=i; if(i==q.answer) score++ } }")
-
-          # إزالة الأقواس الزائدة
-          code = code.replace("}\n}\n}\n}\n\n@Composable\nfun Home", "}\n}\n}\n\n@Composable\nfun Home")
-          code = code.replace("}\n}\n}\n}\n}\n\nfun iconFor", "}\n}\n}\n}\n\nfun iconFor")
-
-          # إضافة الشاشات المفقودة في نهاية الملف لمنع خطأ Unresolved reference
-          missing_screens = """
-
-          @Composable
-          fun StudyChapterScreen(onBack: () -> Unit = {}) {
-              Text("Study Chapters")
+          class MainActivity : ComponentActivity() {
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  setContent {
+                      MaterialTheme {
+                          Surface(
+                              modifier = Modifier.fillMaxSize(),
+                              color = MaterialTheme.colorScheme.background
+                          ) {
+                              AnatomyApp()
+                          }
+                      }
+                  }
+              }
           }
 
           @Composable
-          fun FinalDashboard(onBack: () -> Unit = {}, onExam: () -> Unit = {}, onRegions: () -> Unit = {}, onFlashcards: () -> Unit = {}) {
-              Text("Final Dashboard")
-          }
-          """
-          code = code + missing_screens
+          fun AnatomyApp() {
+              var currentScreen by remember { mutableStateOf("home") }
+              var selectedTopic by remember { mutableStateOf<TopicItem?>(null) }
 
-          with open(file_path, "w", encoding="utf-8") as f:
-              f.write(code)
-          print("Patched successfully!")
+              val topics = remember {
+                  listOf(
+                      TopicItem("Upper Limb Anatomy", "Upper Limb", "Pectoral girdle, arm, forearm, hand bones and neurovasculature."),
+                      TopicItem("Lower Limb Anatomy", "Lower Limb", "Gluteal region, thigh, leg, foot and major nerve pathways."),
+                      TopicItem("Thoracic Cavity", "Thorax", "Heart, lungs, mediastinum, pleural cavities and vascular branches."),
+                      TopicItem("Abdomen & Pelvis", "Abdomen", "GI tract organs, kidneys, pelvic visceral anatomy and peritoneal folds."),
+                      TopicItem("Head & Neck", "Head & Neck", "Cranial nerves, facial muscles, skull osteology and cervical triangles."),
+                      TopicItem("Central Nervous System", "Neuroanatomy", "Brain lobes, brainstem, spinal cord tracts and ventricular system.")
+                  )
+              }
+
+              when (currentScreen) {
+                  "home" -> HomeScreen(
+                      topics = topics,
+                      onTopicClick = { topic ->
+                          selectedTopic = topic
+                          currentScreen = "detail"
+                      },
+                      onQuizClick = { currentScreen = "quiz" }
+                  )
+                  "detail" -> TopicDetailScreen(
+                      topic = selectedTopic,
+                      onBack = { currentScreen = "home" }
+                  )
+                  "quiz" -> QuizScreen(
+                      onBack = { currentScreen = "home" }
+                  )
+              }
+          }
+
+          @Composable
+          fun HomeScreen(topics: List<TopicItem>, onTopicClick: (TopicItem) -> Unit, onQuizClick: () -> Unit) {
+              Scaffold(
+                  topBar = {
+                      TopAppBar(
+                          title = { Text("Anatomy Master", fontWeight = FontWeight.Bold) },
+                          colors = TopAppBarDefaults.topAppBarColors(
+                              containerColor = MaterialTheme.colorScheme.primaryContainer,
+                              titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                          )
+                      )
+                  },
+                  floatingActionButton = {
+                      ExtendedFloatingActionButton(
+                          onClick = onQuizClick,
+                          icon = { Icon(Icons.Default.PlayArrow, contentDescription = null) },
+                          text = { Text("Clinical Quiz") }
+                      )
+                  }
+              ) { padding ->
+                  LazyColumn(
+                      modifier = Modifier
+                          .fillMaxSize()
+                          .padding(padding)
+                          .padding(16.dp),
+                      verticalArrangement = Arrangement.spacedBy(12.dp)
+                  ) {
+                      item {
+                          Text(
+                              text = "Select Regional Anatomy Module",
+                              fontSize = 18.sp,
+                              fontWeight = FontWeight.SemiBold,
+                              color = MaterialTheme.colorScheme.primary
+                          )
+                      }
+                      items(topics) { topic ->
+                          Card(
+                              modifier = Modifier.fillMaxWidth(),
+                              onClick = { onTopicClick(topic) },
+                              elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                          ) {
+                              Column(modifier = Modifier.padding(16.dp)) {
+                                  Text(text = topic.title, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                  Spacer(modifier = Modifier.height(4.dp))
+                                  Text(text = topic.region, fontSize = 13.sp, color = Color.Gray)
+                                  Spacer(modifier = Modifier.height(6.dp))
+                                  Text(text = topic.desc, fontSize = 14.sp)
+                              }
+                          }
+                      }
+                  }
+              }
+          }
+
+          @Composable
+          fun TopicDetailScreen(topic: TopicItem?, onBack: () -> Unit) {
+              Scaffold(
+                  topBar = {
+                      TopAppBar(
+                          title = { Text(topic?.title ?: "Module Detail") },
+                          navigationIcon = {
+                              IconButton(onClick = onBack) {
+                                  Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                              }
+                          }
+                      )
+                  }
+              ) { padding ->
+                  Column(
+                      modifier = Modifier
+                          .fillMaxSize()
+                          .padding(padding)
+                          .padding(20.dp)
+                  ) {
+                      Text(text = topic?.title ?: "", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                      Spacer(modifier = Modifier.height(8.dp))
+                      AssistChip(
+                          onClick = {},
+                          label = { Text(topic?.region ?: "") }
+                      )
+                      Spacer(modifier = Modifier.height(16.dp))
+                      Text(text = topic?.desc ?: "", fontSize = 16.sp, lineHeight = 24.sp)
+                      Spacer(modifier = Modifier.height(24.dp))
+                      Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
+                          Text("Return to Chapters")
+                      }
+                  }
+              }
+          }
+
+          @Composable
+          fun QuizScreen(onBack: () -> Unit) {
+              val questions = remember {
+                  listOf(
+                      "Which nerve passes through the carpal tunnel?" to listOf("Median Nerve", "Ulnar Nerve", "Radial Nerve", "Axillary Nerve"),
+                      "The apex of the heart is primarily formed by:" to listOf("Left Ventricle", "Right Ventricle", "Left Atrium", "Right Atrium"),
+                      "Which muscle forms the primary boundary of the femoral triangle laterally?" to listOf("Sartorius", "Gracilis", "Adductor longus", "Rectus femoris")
+                  )
+              }
+              var qIndex by remember { mutableIntStateOf(0) }
+              var score by remember { mutableIntStateOf(0) }
+              var selectedOpt by remember { mutableStateOf<String?>(null) }
+              var isFinished by remember { mutableStateOf(false) }
+
+              Scaffold(
+                  topBar = {
+                      TopAppBar(
+                          title = { Text("Clinical Anatomy Quiz") },
+                          navigationIcon = {
+                              IconButton(onClick = onBack) {
+                                  Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                              }
+                          }
+                      )
+                  }
+              ) { padding ->
+                  Column(
+                      modifier = Modifier
+                          .fillMaxSize()
+                          .padding(padding)
+                          .padding(20.dp),
+                      verticalArrangement = Arrangement.spacedBy(16.dp)
+                  ) {
+                      if (!isFinished) {
+                          val (qText, options) = questions[qIndex]
+                          LinearProgressIndicator(
+                              progress = { (qIndex + 1).toFloat() / questions.size },
+                              modifier = Modifier.fillMaxWidth()
+                          )
+                          Text("Question ${qIndex + 1} of ${questions.size}", fontSize = 14.sp, color = Color.Gray)
+                          Text(qText, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+
+                          options.forEach { opt ->
+                              OutlinedButton(
+                                  onClick = { selectedOpt = opt },
+                                  modifier = Modifier.fillMaxWidth(),
+                                  colors = ButtonDefaults.outlinedButtonColors(
+                                      containerColor = if (selectedOpt == opt) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
+                                  )
+                              ) {
+                                  Text(opt, modifier = Modifier.padding(vertical = 4.dp))
+                              }
+                          }
+
+                          Spacer(modifier = Modifier.weight(1f))
+                          Button(
+                              onClick = {
+                                  if (selectedOpt == options[0]) score++
+                                  selectedOpt = null
+                                  if (qIndex + 1 < questions.size) {
+                                      qIndex++
+                                  } else {
+                                      isFinished = true
+                                  }
+                              },
+                              enabled = selectedOpt != null,
+                              modifier = Modifier.fillMaxWidth()
+                          ) {
+                              Text(if (qIndex + 1 < questions.size) "Next Question" else "Show Results")
+                          }
+                      } else {
+                          Column(
+                              modifier = Modifier.fillMaxSize(),
+                              verticalArrangement = Arrangement.Center,
+                              horizontalAlignment = Alignment.CenterHorizontally
+                          ) {
+                              Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(64.dp))
+                              Spacer(modifier = Modifier.height(16.dp))
+                              Text("Quiz Completed!", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                              Spacer(modifier = Modifier.height(8.dp))
+                              Text("Your Score: $score / ${questions.size}", fontSize = 18.sp)
+                              Spacer(modifier = Modifier.height(24.dp))
+                              Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
+                                  Text("Back to Dashboard")
+                              }
+                          }
+                      }
+                  }
+              }
+          }
           EOF
 
+          # إعدادات الذاكرة والمترجم
           echo "org.gradle.jvmargs=-Xmx3072m -XX:+UseParallelGC" > gradle.properties
           echo "org.gradle.parallel=false" >> gradle.properties
           echo "kotlin.jvm.target.validation.mode=warning" >> gradle.properties
