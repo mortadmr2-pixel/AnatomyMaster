@@ -23,24 +23,26 @@ jobs:
           gradle-version: '8.9'
           cache-disabled: true
 
-      - name: Fix SDK Compatibility & Build Cyber APK
+      - name: Fix SDK 35 Compatibility & Build Cyber APK
         run: |
+          # 1. قبول التراخيص وتثبيت أندرويد SDK 35
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-35" "build-tools;35.0.0" || true
 
-          # 1. حل خطأ checkDebugAarMetadata برفع compileSdk و targetSdk إلى 34 تلقائياً
-          sed -i 's/compileSdk = [0-9]*/compileSdk = 34/g' app/build.gradle app/build.gradle.kts 2>/dev/null || true
-          sed -i 's/compileSdkVersion [0-9]*/compileSdkVersion 34/g' app/build.gradle app/build.gradle.kts 2>/dev/null || true
-          sed -i 's/targetSdk = [0-9]*/targetSdk = 34/g' app/build.gradle app/build.gradle.kts 2>/dev/null || true
-          sed -i 's/targetSdkVersion [0-9]*/targetSdkVersion 34/g' app/build.gradle app/build.gradle.kts 2>/dev/null || true
+          # 2. ترقية compileSdk و targetSdk إلى 35 في ملفات build.gradle
+          find . -name "build.gradle*" -exec sed -i 's/compileSdk = [0-9]*/compileSdk = 35/g' {} +
+          find . -name "build.gradle*" -exec sed -i 's/compileSdkVersion [0-9]*/compileSdkVersion 35/g' {} +
+          find . -name "build.gradle*" -exec sed -i 's/targetSdk = [0-9]*/targetSdk = 35/g' {} +
+          find . -name "build.gradle*" -exec sed -i 's/targetSdkVersion [0-9]*/targetSdkVersion 35/g' {} +
 
-          # 2. تنزيل كتاب Snell من الـ Release الرسمي
+          # 3. تنزيل كتاب Snell من الـ Release الرسمي
           mkdir -p app/src/main/assets
           if [ ! -f "app/src/main/assets/snell_anatomy.pdf" ]; then
             echo "Downloading Snell PDF..."
             curl -L -o app/src/main/assets/snell_anatomy.pdf "https://github.com/mortadmr2-pixel/AnatomyMaster/releases/download/V1.0/SNELL.S.CLINICAL.ANATOMY.BY.REGIONS.10th.Edition.pdf"
           fi
 
-          # 3. تثبيت أيقونة التطبيق النيونية
+          # 4. تثبيت أيقونة التطبيق النيونية
           find app/src/main/res -name "*ic_launcher*" -delete
           pip install Pillow
 
@@ -107,7 +109,7 @@ jobs:
               f.write(adaptive_xml)
           EOF
 
-          # 4. تحديث كود MainActivity المتقدم والمتوافق بالكامل
+          # 5. تحديث كود MainActivity
           TARGET_FILE=$(find app/src/main/java -name "MainActivity.kt" | head -n 1)
           if [ -n "$TARGET_FILE" ]; then
             cat << 'EOF' > "$TARGET_FILE"
@@ -684,7 +686,7 @@ jobs:
           EOF
           fi
 
-          # 5. إعدادات البناء وتوليد gradlew وبناء APK
+          # 6. إعدادات الذاكرة وبناء الـ APK
           echo "org.gradle.jvmargs=-Xmx3072m -XX:+UseParallelGC" > gradle.properties
           echo "org.gradle.parallel=false" >> gradle.properties
           echo "kotlin.jvm.target.validation.mode=warning" >> gradle.properties
