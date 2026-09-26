@@ -29,8 +29,10 @@ jobs:
 
           # 1. تنزيل كتاب Snell من الريليز
           mkdir -p app/src/main/assets
-          echo "Downloading Snell PDF..."
-          curl -L -o app/src/main/assets/snell_anatomy.pdf "https://github.com/mortadmr2-pixel/AnatomyMaster/releases/download/V1.0/SNELL.S.CLINICAL.ANATOMY.BY.REGIONS.10th.Edition.pdf"
+          if [ ! -f "app/src/main/assets/snell_anatomy.pdf" ]; then
+            echo "Downloading Snell PDF..."
+            curl -L -o app/src/main/assets/snell_anatomy.pdf "https://github.com/mortadmr2-pixel/AnatomyMaster/releases/download/V1.0/SNELL.S.CLINICAL.ANATOMY.BY.REGIONS.10th.Edition.pdf"
+          fi
 
           # 2. توليد الأيقونة الطبية النيونية
           find app/src/main/res -name "*ic_launcher*" -delete
@@ -99,7 +101,7 @@ jobs:
               f.write(adaptive_xml)
           EOF
 
-          # 3. تثبيت واجهة الـ Cyber HUD الحديثة
+          # 3. تحديث واجهة MainActivity بكود Compose الخالي من الأخطاء
           TARGET_FILE=$(find app/src/main/java -name "MainActivity.kt" | head -n 1)
           if [ -n "$TARGET_FILE" ]; then
             cat << 'EOF' > "$TARGET_FILE"
@@ -114,6 +116,7 @@ jobs:
           import androidx.activity.compose.setContent
           import androidx.compose.animation.*
           import androidx.compose.animation.core.*
+          import androidx.compose.foundation.BorderStroke
           import androidx.compose.foundation.Canvas
           import androidx.compose.foundation.Image
           import androidx.compose.foundation.background
@@ -177,12 +180,8 @@ jobs:
                                   .fillMaxWidth()
                                   .padding(16.dp)
                                   .clip(RoundedCornerShape(26.dp))
-                                  .background(
-                                      Brush.horizontalGradient(
-                                          listOf(Color(0xE6050B14), Color(0xEB0A192F), Color(0xE6050B14))
-                                      )
-                                  )
-                                  .border(1.5.dp, Brush.horizontalGradient(listOf(Color(0xFF00F0FF), Color(0xFF7000FF), Color(0xFF00F0FF))), RoundedCornerShape(26.dp))
+                                  .background(Color(0xE6050B14))
+                                  .border(BorderStroke(1.5.dp, Color(0xFF00F0FF)), RoundedCornerShape(26.dp))
                           ) {
                               NavigationBar(
                                   containerColor = Color.Transparent,
@@ -396,7 +395,7 @@ jobs:
                               .padding(top = 28.dp, start = 16.dp, end = 16.dp)
                               .clip(RoundedCornerShape(22.dp))
                               .background(Color(0xD9060E1E))
-                              .border(1.dp, Brush.horizontalGradient(listOf(Color(0xFF00F0FF).copy(alpha = pulseGlow), Color(0xFF7000FF))), RoundedCornerShape(22.dp))
+                              .border(BorderStroke(1.dp, Color(0xFF00F0FF).copy(alpha = pulseGlow)), RoundedCornerShape(22.dp))
                               .padding(horizontal = 16.dp, vertical = 12.dp),
                           verticalAlignment = Alignment.CenterVertically,
                           horizontalArrangement = Arrangement.SpaceBetween
@@ -420,7 +419,7 @@ jobs:
                               onClick = { showIndex = !showIndex },
                               colors = ButtonDefaults.buttonColors(containerColor = Color(0x3300F0FF)),
                               shape = RoundedCornerShape(12.dp),
-                              border = ButtonDefaults.outlinedButtonBorder.copy(brush = Brush.linearGradient(listOf(Color(0xFF00F0FF), Color(0xFF7000FF))))
+                              border = BorderStroke(1.dp, Color(0xFF00F0FF))
                           ) {
                               Text("INDEX 📑", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
                           }
@@ -452,7 +451,7 @@ jobs:
                               .padding(top = 95.dp, start = 20.dp, end = 20.dp)
                               .clip(RoundedCornerShape(20.dp))
                               .background(Color(0xF0030816))
-                              .border(1.5.dp, Color(0xFF00F0FF), RoundedCornerShape(20.dp)),
+                              .border(BorderStroke(1.5.dp, Color(0xFF00F0FF)), RoundedCornerShape(20.dp)),
                           colors = CardDefaults.cardColors(containerColor = Color(0xF0030816))
                       ) {
                           LazyColumn(modifier = Modifier.height(280.dp).padding(10.dp)) {
@@ -488,7 +487,7 @@ jobs:
                           containerColor = if (isImmersive) Color(0xFF7000FF) else Color(0xCC050E1E),
                           contentColor = Color(0xFF00F0FF),
                           shape = CircleShape,
-                          modifier = Modifier.size(48.dp).border(1.dp, Color(0xFF00F0FF), CircleShape)
+                          modifier = Modifier.size(48.dp).border(BorderStroke(1.dp, Color(0xFF00F0FF)), CircleShape)
                       ) {
                           Text(if (isImmersive) "🗗" else "⛶", fontSize = 18.sp)
                       }
@@ -498,7 +497,7 @@ jobs:
                           containerColor = if (isLaserMode) Color(0xFF00F0FF) else Color(0xCC050E1E),
                           contentColor = if (isLaserMode) Color.Black else Color(0xFF00F0FF),
                           shape = CircleShape,
-                          modifier = Modifier.size(48.dp).border(1.dp, Color(0xFF00F0FF), CircleShape)
+                          modifier = Modifier.size(48.dp).border(BorderStroke(1.dp, Color(0xFF00F0FF)), CircleShape)
                       ) {
                           Text("🖊️", fontSize = 17.sp)
                       }
@@ -539,7 +538,7 @@ jobs:
                               containerColor = Color(0xCC050E1E),
                               contentColor = Color(0xFF00F0FF),
                               shape = CircleShape,
-                              modifier = Modifier.size(44.dp).border(1.dp, Color(0xFF00F0FF), CircleShape)
+                              modifier = Modifier.size(44.dp).border(BorderStroke(1.dp, Color(0xFF00F0FF)), CircleShape)
                           ) {
                               Text("1X", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                           }
@@ -558,7 +557,7 @@ jobs:
                               .padding(horizontal = 20.dp)
                               .clip(RoundedCornerShape(26.dp))
                               .background(Color(0xD9060E1E))
-                              .border(1.dp, Color(0x4400F0FF), RoundedCornerShape(26.dp))
+                              .border(BorderStroke(1.dp, Color(0x4400F0FF)), RoundedCornerShape(26.dp))
                               .padding(horizontal = 14.dp, vertical = 6.dp),
                           verticalAlignment = Alignment.CenterVertically
                       ) {
@@ -625,7 +624,7 @@ jobs:
                   Card(
                       colors = CardDefaults.cardColors(containerColor = Color(0xCC091222)),
                       shape = RoundedCornerShape(18.dp),
-                      modifier = Modifier.fillMaxWidth().border(1.dp, Color(0x3300F0FF), RoundedCornerShape(18.dp))
+                      modifier = Modifier.fillMaxWidth().border(BorderStroke(1.dp, Color(0x3300F0FF)), RoundedCornerShape(18.dp))
                   ) {
                       Text(
                           text = questions[qIndex].vignette,
@@ -651,7 +650,7 @@ jobs:
                           },
                           colors = ButtonDefaults.buttonColors(containerColor = btnBg),
                           shape = RoundedCornerShape(14.dp),
-                          modifier = Modifier.fillMaxWidth().border(1.dp, Color(0x2200F0FF), RoundedCornerShape(14.dp))
+                          modifier = Modifier.fillMaxWidth().border(BorderStroke(1.dp, Color(0x2200F0FF)), RoundedCornerShape(14.dp))
                       ) {
                           Text(opt, color = Color.White, fontSize = 14.sp, modifier = Modifier.padding(6.dp))
                       }
@@ -661,7 +660,7 @@ jobs:
                       Card(
                           colors = CardDefaults.cardColors(containerColor = Color(0xCC0C1A30)),
                           shape = RoundedCornerShape(14.dp),
-                          modifier = Modifier.fillMaxWidth().border(1.dp, Color(0xFF7000FF), RoundedCornerShape(14.dp))
+                          modifier = Modifier.fillMaxWidth().border(BorderStroke(1.dp, Color(0xFF7000FF)), RoundedCornerShape(14.dp))
                       ) {
                           Column(modifier = Modifier.padding(14.dp)) {
                               Text("⚡ NEURAL CLINICAL DEBRIEF", color = Color(0xFF00F0FF), fontWeight = FontWeight.Bold, fontSize = 12.sp)
@@ -690,7 +689,7 @@ jobs:
           EOF
           fi
 
-          # 4. إعدادات الذاكرة وتوليد gradlew رسمياً للبناء
+          # 4. بناء المشروع
           echo "org.gradle.jvmargs=-Xmx3072m -XX:+UseParallelGC" > gradle.properties
           echo "org.gradle.parallel=false" >> gradle.properties
           echo "kotlin.jvm.target.validation.mode=warning" >> gradle.properties
