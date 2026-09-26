@@ -17,7 +17,7 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Gradle
+      - name: Setup Gradle Environment
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.9'
@@ -27,14 +27,12 @@ jobs:
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-          # تنزيل ملف PDF إذا لم يكن موجوداً
+          # 1. تنزيل كتاب Snell من الريليز
           mkdir -p app/src/main/assets
-          if [ ! -f "app/src/main/assets/snell_anatomy.pdf" ]; then
-            echo "Downloading Snell PDF..."
-            curl -L -o app/src/main/assets/snell_anatomy.pdf "https://github.com/mortadmr2-pixel/AnatomyMaster/releases/download/V1.0/SNELL.S.CLINICAL.ANATOMY.BY.REGIONS.10th.Edition.pdf"
-          fi
+          echo "Downloading Snell PDF..."
+          curl -L -o app/src/main/assets/snell_anatomy.pdf "https://github.com/mortadmr2-pixel/AnatomyMaster/releases/download/V1.0/SNELL.S.CLINICAL.ANATOMY.BY.REGIONS.10th.Edition.pdf"
 
-          # توليد أيقونة تشريحية نيونية مستقبلية
+          # 2. توليد الأيقونة الطبية النيونية
           find app/src/main/res -name "*ic_launcher*" -delete
           pip install Pillow
 
@@ -46,19 +44,15 @@ jobs:
           img = Image.new("RGBA", (size, size), (3, 7, 18, 255))
           draw = ImageDraw.Draw(img)
 
-          # خلفية كوزمك داكنة وهالة نيونية
           draw.rounded_rectangle([0, 0, size, size], radius=110, fill=(5, 11, 26))
           draw.ellipse([50, 50, 462, 462], fill=(10, 25, 50), outline=(0, 240, 255), width=3)
           draw.ellipse([80, 80, 432, 432], fill=(15, 30, 60))
 
-          # عمود فقري متوهج
           for y in range(70, 450, 36):
               draw.rounded_rectangle([236, y, 276, y + 22], radius=6, fill=(140, 230, 255), outline=(0, 240, 255), width=2)
 
-          # عظم القص الهولوجرامي
           draw.polygon([(244, 120), (268, 120), (262, 260), (256, 285), (250, 260)], fill=(210, 245, 255), outline=(0, 240, 255))
 
-          # الأضلاع النيونية المنحنية
           ribs = [
               (140, 115, 30),
               (180, 155, 45),
@@ -72,7 +66,6 @@ jobs:
               draw.arc([256 - span_x, cy - drop_y, 256, cy + drop_y], start=280, end=75, fill=(0, 240, 255), width=8)
               draw.arc([256, cy - drop_y, 256 + span_x, cy + drop_y], start=105, end=260, fill=(0, 240, 255), width=8)
 
-          # ترقوة متوهجة
           draw.line([(95, 100), (256, 125)], fill=(180, 240, 255), width=9)
           draw.line([(417, 100), (256, 125)], fill=(180, 240, 255), width=9)
 
@@ -106,7 +99,7 @@ jobs:
               f.write(adaptive_xml)
           EOF
 
-          # بناء كود الواجهة المستقبلية (Cyber-HUD Design & Smooth Gestures)
+          # 3. تثبيت واجهة الـ Cyber HUD الحديثة
           TARGET_FILE=$(find app/src/main/java -name "MainActivity.kt" | head -n 1)
           if [ -n "$TARGET_FILE" ]; then
             cat << 'EOF' > "$TARGET_FILE"
@@ -139,7 +132,6 @@ jobs:
           import androidx.compose.runtime.*
           import androidx.compose.ui.Alignment
           import androidx.compose.ui.Modifier
-          import androidx.compose.ui.draw.blur
           import androidx.compose.ui.draw.clip
           import androidx.compose.ui.draw.shadow
           import androidx.compose.ui.geometry.Offset
@@ -149,13 +141,11 @@ jobs:
           import androidx.compose.ui.graphics.graphicsLayer
           import androidx.compose.ui.input.pointer.pointerInput
           import androidx.compose.ui.platform.LocalContext
-          import androidx.compose.ui.text.font.FontFamily
           import androidx.compose.ui.text.font.FontWeight
           import androidx.compose.ui.unit.dp
           import androidx.compose.ui.unit.sp
           import java.io.File
           import java.io.FileOutputStream
-          import kotlin.math.abs
 
           class MainActivity : ComponentActivity() {
               override fun onCreate(savedInstanceState: Bundle?) {
@@ -253,7 +243,6 @@ jobs:
               var pdfRenderer by remember { mutableStateOf<PdfRenderer?>(null) }
               var showIndex by remember { mutableStateOf(false) }
 
-              // التكبير والتصغير والانتقال
               var scale by remember { mutableStateOf(1f) }
               var offset by remember { mutableStateOf(Offset.Zero) }
 
@@ -266,12 +255,10 @@ jobs:
                   }
               }
 
-              // تفعيل قلم التأشير وحفظه
               var isLaserMode by remember { mutableStateOf(false) }
               var laserColor by remember { mutableStateOf(Color(0x9900F0FF)) }
               val pageAnnotations = remember { mutableStateMapOf<Int, MutableList<LaserPoint>>() }
 
-              // نبضات الإضاءة النيونية (Neural Pulse)
               val infiniteTransition = rememberInfiniteTransition(label = "pulse")
               val pulseGlow by infiniteTransition.animateFloat(
                   initialValue = 0.35f,
@@ -331,7 +318,6 @@ jobs:
               }
 
               Box(modifier = Modifier.fillMaxSize()) {
-                  // مساحة عرض الكتاب مع دعم النقر المزدوج والسحب
                   Box(
                       modifier = Modifier
                           .fillMaxSize()
@@ -379,7 +365,6 @@ jobs:
                                       .shadow(30.dp, spotColor = Color(0xFF00F0FF))
                               )
 
-                              // طبقة تظليل وحفظ الملاحظات
                               Canvas(modifier = Modifier.matchParentSize()) {
                                   pageAnnotations[currentPage]?.forEach { pt ->
                                       drawCircle(
@@ -399,7 +384,6 @@ jobs:
                       }
                   }
 
-                  // الشريط العلوي الزجاجي الهولوجرامي (HUD Top Bar)
                   AnimatedVisibility(
                       visible = !isImmersive,
                       enter = slideInVertically() + fadeIn(),
@@ -450,7 +434,6 @@ jobs:
                       }
                   }
 
-                  // لوحة الفصول المستقبلية المنبثقة
                   if (showIndex) {
                       val chapters = listOf(
                           "01 // INTRODUCTION & SYSTEMIC OVERVIEW" to 1,
@@ -494,7 +477,6 @@ jobs:
                       }
                   }
 
-                  // أدوات الـ Cyber HUD العائمة الجانبية
                   Column(
                       modifier = Modifier
                           .align(Alignment.CenterEnd)
@@ -564,7 +546,6 @@ jobs:
                       }
                   }
 
-                  // شريط التنقل الهولوجرامي السفلي
                   AnimatedVisibility(
                       visible = !isImmersive,
                       enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
@@ -709,11 +690,13 @@ jobs:
           EOF
           fi
 
+          # 4. إعدادات الذاكرة وتوليد gradlew رسمياً للبناء
           echo "org.gradle.jvmargs=-Xmx3072m -XX:+UseParallelGC" > gradle.properties
           echo "org.gradle.parallel=false" >> gradle.properties
           echo "kotlin.jvm.target.validation.mode=warning" >> gradle.properties
           echo "android.useAndroidX=true" >> gradle.properties
 
+          gradle wrapper --gradle-version 8.9
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
 
