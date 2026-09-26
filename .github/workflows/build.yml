@@ -17,17 +17,22 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Fetch Snell PDF from Release & Build APK
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.9'
+          cache-disabled: true
+
+      - name: Fetch Snell PDF & Build APK
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-          # 1. تنزيل ملف PDF مباشرة من الـ Release الرسمي
+          # 1. تنزيل كتاب Snell PDF من الـ Release مباشرة
           mkdir -p app/src/main/assets
-          echo "Downloading Snell PDF from Release..."
+          echo "Downloading Snell PDF..."
           curl -L -o app/src/main/assets/snell_anatomy.pdf "https://github.com/mortadmr2-pixel/AnatomyMaster/releases/download/V1.0/SNELL.S.CLINICAL.ANATOMY.BY.REGIONS.10th.Edition.pdf"
-          ls -lh app/src/main/assets/snell_anatomy.pdf
 
-          # 2. إزالة أيقونة الروبوت وتثبيت أيقونة القفص الصدري التشريحية
+          # 2. إزالة أيقونة الروبوت وتثبيت الأيقونة التشريحية
           find app/src/main/res -name "*ic_launcher*" -delete
           pip install Pillow
 
@@ -93,7 +98,7 @@ jobs:
               f.write(adaptive_xml)
           EOF
 
-          # 3. تحديث واجهة MainActivity لتشمل قارئ PDF وقسم الكويزات
+          # 3. واجهة التطبيق مع قارئ PDF وقسم الكويزات
           TARGET_FILE=$(find app/src/main/java -name "MainActivity.kt" | head -n 1)
           if [ -n "$TARGET_FILE" ]; then
             cat << 'EOF' > "$TARGET_FILE"
@@ -508,6 +513,7 @@ jobs:
           echo "kotlin.jvm.target.validation.mode=warning" >> gradle.properties
           echo "android.useAndroidX=true" >> gradle.properties
 
+          gradle wrapper --gradle-version 8.9
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
 
