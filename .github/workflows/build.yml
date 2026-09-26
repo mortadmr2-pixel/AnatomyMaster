@@ -23,16 +23,18 @@ jobs:
           gradle-version: '8.9'
           cache-disabled: true
 
-      - name: Fetch Snell PDF & Build APK
+      - name: Build Cyber-Futuristic Anatomy Master
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-          # 1. تنزيل كتاب Snell PDF من الـ Release مباشرة
+          # تنزيل ملف PDF إذا لم يكن موجوداً
           mkdir -p app/src/main/assets
-          echo "Downloading Snell PDF..."
-          curl -L -o app/src/main/assets/snell_anatomy.pdf "https://github.com/mortadmr2-pixel/AnatomyMaster/releases/download/V1.0/SNELL.S.CLINICAL.ANATOMY.BY.REGIONS.10th.Edition.pdf"
+          if [ ! -f "app/src/main/assets/snell_anatomy.pdf" ]; then
+            echo "Downloading Snell PDF..."
+            curl -L -o app/src/main/assets/snell_anatomy.pdf "https://github.com/mortadmr2-pixel/AnatomyMaster/releases/download/V1.0/SNELL.S.CLINICAL.ANATOMY.BY.REGIONS.10th.Edition.pdf"
+          fi
 
-          # 2. إزالة أيقونة الروبوت وتثبيت الأيقونة التشريحية
+          # توليد أيقونة تشريحية نيونية مستقبلية
           find app/src/main/res -name "*ic_launcher*" -delete
           pip install Pillow
 
@@ -41,32 +43,38 @@ jobs:
           from PIL import Image, ImageDraw
 
           size = 512
-          img = Image.new("RGBA", (size, size), (11, 19, 43, 255))
+          img = Image.new("RGBA", (size, size), (3, 7, 18, 255))
           draw = ImageDraw.Draw(img)
 
-          draw.rounded_rectangle([0, 0, size, size], radius=110, fill=(11, 19, 43))
-          draw.ellipse([70, 70, 442, 442], fill=(20, 35, 65))
+          # خلفية كوزمك داكنة وهالة نيونية
+          draw.rounded_rectangle([0, 0, size, size], radius=110, fill=(5, 11, 26))
+          draw.ellipse([50, 50, 462, 462], fill=(10, 25, 50), outline=(0, 240, 255), width=3)
+          draw.ellipse([80, 80, 432, 432], fill=(15, 30, 60))
 
-          for y in range(60, 470, 35):
-              draw.rounded_rectangle([236, y, 276, y + 22], radius=6, fill=(180, 210, 240), outline=(72, 202, 228), width=2)
+          # عمود فقري متوهج
+          for y in range(70, 450, 36):
+              draw.rounded_rectangle([236, y, 276, y + 22], radius=6, fill=(140, 230, 255), outline=(0, 240, 255), width=2)
 
-          draw.polygon([(244, 120), (268, 120), (262, 260), (256, 285), (250, 260)], fill=(230, 242, 255), outline=(72, 202, 228))
+          # عظم القص الهولوجرامي
+          draw.polygon([(244, 120), (268, 120), (262, 260), (256, 285), (250, 260)], fill=(210, 245, 255), outline=(0, 240, 255))
 
-          rib_levels = [
+          # الأضلاع النيونية المنحنية
+          ribs = [
               (140, 115, 30),
               (180, 155, 45),
-              (225, 180, 55),
-              (270, 190, 60),
-              (315, 175, 60),
+              (225, 185, 55),
+              (270, 195, 60),
+              (315, 180, 60),
               (360, 150, 55),
               (405, 120, 45)
           ]
-          for cy, span_x, drop_y in rib_levels:
-              draw.arc([256 - span_x, cy - drop_y, 256, cy + drop_y], start=280, end=75, fill=(72, 202, 228), width=8)
-              draw.arc([256, cy - drop_y, 256 + span_x, cy + drop_y], start=105, end=260, fill=(72, 202, 228), width=8)
+          for cy, span_x, drop_y in ribs:
+              draw.arc([256 - span_x, cy - drop_y, 256, cy + drop_y], start=280, end=75, fill=(0, 240, 255), width=8)
+              draw.arc([256, cy - drop_y, 256 + span_x, cy + drop_y], start=105, end=260, fill=(0, 240, 255), width=8)
 
-          draw.line([(100, 100), (256, 125)], fill=(225, 245, 255), width=9)
-          draw.line([(412, 100), (256, 125)], fill=(225, 245, 255), width=9)
+          # ترقوة متوهجة
+          draw.line([(95, 100), (256, 125)], fill=(180, 240, 255), width=9)
+          draw.line([(417, 100), (256, 125)], fill=(180, 240, 255), width=9)
 
           densities = {
               "mipmap-mdpi": (48, 108),
@@ -98,7 +106,7 @@ jobs:
               f.write(adaptive_xml)
           EOF
 
-          # 3. واجهة التطبيق مع قارئ PDF وقسم الكويزات
+          # بناء كود الواجهة المستقبلية (Cyber-HUD Design & Smooth Gestures)
           TARGET_FILE=$(find app/src/main/java -name "MainActivity.kt" | head -n 1)
           if [ -n "$TARGET_FILE" ]; then
             cat << 'EOF' > "$TARGET_FILE"
@@ -111,125 +119,186 @@ jobs:
           import android.os.ParcelFileDescriptor
           import androidx.activity.ComponentActivity
           import androidx.activity.compose.setContent
+          import androidx.compose.animation.*
+          import androidx.compose.animation.core.*
+          import androidx.compose.foundation.Canvas
           import androidx.compose.foundation.Image
           import androidx.compose.foundation.background
+          import androidx.compose.foundation.border
           import androidx.compose.foundation.clickable
+          import androidx.compose.foundation.gestures.detectDragGestures
+          import androidx.compose.foundation.gestures.detectTapGestures
+          import androidx.compose.foundation.gestures.rememberTransformableState
+          import androidx.compose.foundation.gestures.transformable
           import androidx.compose.foundation.layout.*
           import androidx.compose.foundation.lazy.LazyColumn
           import androidx.compose.foundation.lazy.items
-          import androidx.compose.foundation.rememberScrollState
+          import androidx.compose.foundation.shape.CircleShape
           import androidx.compose.foundation.shape.RoundedCornerShape
-          import androidx.compose.foundation.verticalScroll
           import androidx.compose.material3.*
           import androidx.compose.runtime.*
           import androidx.compose.ui.Alignment
           import androidx.compose.ui.Modifier
+          import androidx.compose.ui.draw.blur
+          import androidx.compose.ui.draw.clip
+          import androidx.compose.ui.draw.shadow
+          import androidx.compose.ui.geometry.Offset
+          import androidx.compose.ui.graphics.Brush
           import androidx.compose.ui.graphics.Color
           import androidx.compose.ui.graphics.asImageBitmap
+          import androidx.compose.ui.graphics.graphicsLayer
+          import androidx.compose.ui.input.pointer.pointerInput
           import androidx.compose.ui.platform.LocalContext
+          import androidx.compose.ui.text.font.FontFamily
           import androidx.compose.ui.text.font.FontWeight
           import androidx.compose.ui.unit.dp
           import androidx.compose.ui.unit.sp
           import java.io.File
           import java.io.FileOutputStream
+          import kotlin.math.abs
 
           class MainActivity : ComponentActivity() {
               override fun onCreate(savedInstanceState: Bundle?) {
                   super.onCreate(savedInstanceState)
                   setContent {
                       MaterialTheme {
-                          SnellMasterApp()
+                          CyberAnatomyMasterApp()
                       }
                   }
               }
           }
 
-          data class SnellChapter(val title: String, val approxPage: Int)
-          data class QuizQuestion(val scenario: String, val options: List<String>, val answerIndex: Int, val explanation: String)
+          data class LaserPoint(val offset: Offset, val color: Color, val radius: Float)
 
-          @OptIn(ExperimentalMaterial3Api::class)
           @Composable
-          fun SnellMasterApp() {
+          fun CyberAnatomyMasterApp() {
               var selectedTab by remember { mutableStateOf(0) }
-              var targetPage by remember { mutableStateOf(0) }
+              var isImmersive by remember { mutableStateOf(false) }
 
               Scaffold(
-                  topBar = {
-                      TopAppBar(
-                          title = {
-                              Column {
-                                  Text(
-                                      text = if (selectedTab == 0) "Snell's Clinical Anatomy" else "Clinical Vignette Quizzes",
-                                      fontWeight = FontWeight.Bold,
-                                      fontSize = 18.sp
+                  bottomBar = {
+                      AnimatedVisibility(
+                          visible = !isImmersive,
+                          enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                          exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+                      ) {
+                          Box(
+                              modifier = Modifier
+                                  .fillMaxWidth()
+                                  .padding(16.dp)
+                                  .clip(RoundedCornerShape(26.dp))
+                                  .background(
+                                      Brush.horizontalGradient(
+                                          listOf(Color(0xE6050B14), Color(0xEB0A192F), Color(0xE6050B14))
+                                      )
                                   )
-                                  Text(
-                                      text = if (selectedTab == 0) "10th Edition • Full Book" else "High-Yield Clinical Review",
-                                      fontSize = 12.sp,
-                                      color = Color(0xFF38BDF8)
+                                  .border(1.5.dp, Brush.horizontalGradient(listOf(Color(0xFF00F0FF), Color(0xFF7000FF), Color(0xFF00F0FF))), RoundedCornerShape(26.dp))
+                          ) {
+                              NavigationBar(
+                                  containerColor = Color.Transparent,
+                                  modifier = Modifier.height(68.dp)
+                              ) {
+                                  NavigationBarItem(
+                                      selected = selectedTab == 0,
+                                      onClick = { selectedTab = 0 },
+                                      label = { Text("NEURAL SNELL", fontWeight = FontWeight.Bold, letterSpacing = 1.sp, fontSize = 11.sp) },
+                                      icon = { Text("⚡", fontSize = 20.sp) },
+                                      colors = NavigationBarItemDefaults.colors(
+                                          selectedTextColor = Color(0xFF00F0FF),
+                                          unselectedTextColor = Color(0xFF64748B),
+                                          indicatorColor = Color(0x3300F0FF)
+                                      )
+                                  )
+                                  NavigationBarItem(
+                                      selected = selectedTab == 1,
+                                      onClick = { selectedTab = 1 },
+                                      label = { Text("CLINICAL MATRIX", fontWeight = FontWeight.Bold, letterSpacing = 1.sp, fontSize = 11.sp) },
+                                      icon = { Text("🧬", fontSize = 20.sp) },
+                                      colors = NavigationBarItemDefaults.colors(
+                                          selectedTextColor = Color(0xFF00F0FF),
+                                          unselectedTextColor = Color(0xFF64748B),
+                                          indicatorColor = Color(0x3300F0FF)
+                                      )
                                   )
                               }
-                          },
-                          colors = TopAppBarDefaults.topAppBarColors(
-                              containerColor = Color(0xFF0F172A),
-                              titleContentColor = Color.White
-                          )
-                      )
-                  },
-                  bottomBar = {
-                      NavigationBar(containerColor = Color(0xFF0F172A)) {
-                          NavigationBarItem(
-                              selected = selectedTab == 0,
-                              onClick = { selectedTab = 0 },
-                              label = { Text("📖 Snell Book") },
-                              icon = { Text("📚") }
-                          )
-                          NavigationBarItem(
-                              selected = selectedTab == 1,
-                              onClick = { selectedTab = 1 },
-                              label = { Text("🎯 Clinical Quizzes") },
-                              icon = { Text("🩺") }
-                          )
+                          }
                       }
                   }
               ) { padding ->
                   Box(
                       modifier = Modifier
                           .fillMaxSize()
-                          .padding(padding)
-                          .background(Color(0xFF0B132B))
+                          .background(Color(0xFF030712))
                   ) {
                       if (selectedTab == 0) {
-                          SnellBookViewer(initialPage = targetPage)
+                          CyberReader(
+                              isImmersive = isImmersive,
+                              onToggleImmersive = { isImmersive = !isImmersive }
+                          )
                       } else {
-                          ClinicalQuizScreen()
+                          CyberQuizScreen(modifier = Modifier.padding(padding))
                       }
                   }
               }
           }
 
           @Composable
-          fun SnellBookViewer(initialPage: Int) {
+          fun CyberReader(isImmersive: Boolean, onToggleImmersive: () -> Unit) {
               val context = LocalContext.current
-              var currentPage by remember { mutableStateOf(initialPage) }
-              var totalPages by remember { mutableStateOf(1) }
+              val prefs = remember { context.getSharedPreferences("snell_cyber_notes", Context.MODE_PRIVATE) }
+
+              var currentPage by remember { mutableStateOf(210) }
+              var totalPages by remember { mutableStateOf(2063) }
               var currentBitmap by remember { mutableStateOf<Bitmap?>(null) }
               var pdfRenderer by remember { mutableStateOf<PdfRenderer?>(null) }
-              var showIndexSheet by remember { mutableStateOf(false) }
+              var showIndex by remember { mutableStateOf(false) }
 
-              val chapters = remember {
-                  listOf(
-                      SnellChapter("Chapter 1: Introduction & Tissues", 1),
-                      SnellChapter("Chapter 2: The Thorax - Wall & Mediastinum", 45),
-                      SnellChapter("Chapter 3: The Thorax - Lungs & Heart", 90),
-                      SnellChapter("Chapter 4: The Abdomen - Wall & Peritoneum", 170),
-                      SnellChapter("Chapter 5: The Abdomen - Gastrointestinal Tract", 230),
-                      SnellChapter("Chapter 6: The Pelvis & Perineum", 320),
-                      SnellChapter("Chapter 7: The Upper Limb", 410),
-                      SnellChapter("Chapter 8: The Lower Limb", 530),
-                      SnellChapter("Chapter 9: Head & Neck", 650),
-                      SnellChapter("Chapter 10: Cranial Nerves & Brain", 780)
-                  )
+              // التكبير والتصغير والانتقال
+              var scale by remember { mutableStateOf(1f) }
+              var offset by remember { mutableStateOf(Offset.Zero) }
+
+              val transformState = rememberTransformableState { zoomChange, offsetChange, _ ->
+                  scale = (scale * zoomChange).coerceIn(1f, 5f)
+                  if (scale > 1f) {
+                      offset += offsetChange
+                  } else {
+                      offset = Offset.Zero
+                  }
+              }
+
+              // تفعيل قلم التأشير وحفظه
+              var isLaserMode by remember { mutableStateOf(false) }
+              var laserColor by remember { mutableStateOf(Color(0x9900F0FF)) }
+              val pageAnnotations = remember { mutableStateMapOf<Int, MutableList<LaserPoint>>() }
+
+              // نبضات الإضاءة النيونية (Neural Pulse)
+              val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+              val pulseGlow by infiniteTransition.animateFloat(
+                  initialValue = 0.35f,
+                  targetValue = 1f,
+                  animationSpec = infiniteRepeatable(tween(1200, easing = LinearEasing), RepeatMode.Reverse),
+                  label = "glow"
+              )
+
+              LaunchedEffect(currentPage) {
+                  scale = 1f
+                  offset = Offset.Zero
+                  if (!pageAnnotations.containsKey(currentPage)) {
+                      val saved = prefs.getString("page_$currentPage", "") ?: ""
+                      val list = mutableListOf<LaserPoint>()
+                      if (saved.isNotEmpty()) {
+                          saved.split(";").forEach { item ->
+                              val parts = item.split(",")
+                              if (parts.size >= 3) {
+                                  val x = parts[0].toFloatOrNull() ?: 0f
+                                  val y = parts[1].toFloatOrNull() ?: 0f
+                                  val c = parts[2].toIntOrNull() ?: 0x9900F0FF.toInt()
+                                  list.add(LaserPoint(Offset(x, y), Color(c), 16f))
+                              }
+                          }
+                      }
+                      pageAnnotations[currentPage] = list
+                  }
               }
 
               LaunchedEffect(Unit) {
@@ -237,9 +306,7 @@ jobs:
                       val file = File(context.cacheDir, "snell_anatomy.pdf")
                       if (!file.exists()) {
                           context.assets.open("snell_anatomy.pdf").use { input ->
-                              FileOutputStream(file).use { output ->
-                                  input.copyTo(output)
-                              }
+                              FileOutputStream(file).use { output -> input.copyTo(output) }
                           }
                       }
                       val pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
@@ -263,248 +330,382 @@ jobs:
                   }
               }
 
-              Column(modifier = Modifier.fillMaxSize()) {
-                  Row(
-                      modifier = Modifier
-                          .fillMaxWidth()
-                          .background(Color(0xFF1E293B))
-                          .padding(horizontal = 12.dp, vertical = 8.dp),
-                      horizontalArrangement = Arrangement.SpaceBetween,
-                      verticalAlignment = Alignment.CenterVertically
-                  ) {
-                      Button(
-                          onClick = { showIndexSheet = !showIndexSheet },
-                          colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
-                          shape = RoundedCornerShape(8.dp)
-                      ) {
-                          Text("📑 Chapters Index", fontSize = 13.sp)
-                      }
-
-                      Text(
-                          text = "Page ${currentPage + 1} of $totalPages",
-                          color = Color.White,
-                          fontWeight = FontWeight.Bold,
-                          fontSize = 14.sp
-                      )
-                  }
-
-                  if (showIndexSheet) {
-                      LazyColumn(
-                          modifier = Modifier
-                              .fillMaxWidth()
-                              .height(220.dp)
-                              .background(Color(0xFF0F172A))
-                              .padding(8.dp)
-                      ) {
-                          items(chapters) { ch ->
-                              Text(
-                                  text = ch.title,
-                                  color = Color(0xFF38BDF8),
-                                  modifier = Modifier
-                                      .fillMaxWidth()
-                                      .clickable {
-                                          val p = ch.approxPage.coerceIn(0, (totalPages - 1).coerceAtLeast(0))
-                                          currentPage = p
-                                          showIndexSheet = false
-                                      }
-                                      .padding(vertical = 8.dp, horizontal = 12.dp),
-                                  fontSize = 14.sp,
-                                  fontWeight = FontWeight.Medium
-                              )
-                              Divider(color = Color(0xFF1E293B))
-                          }
-                      }
-                  }
-
+              Box(modifier = Modifier.fillMaxSize()) {
+                  // مساحة عرض الكتاب مع دعم النقر المزدوج والسحب
                   Box(
                       modifier = Modifier
-                          .weight(1f)
-                          .fillMaxWidth()
-                          .background(Color(0xFF1E293B)),
+                          .fillMaxSize()
+                          .transformable(state = transformState, enabled = !isLaserMode)
+                          .pointerInput(isLaserMode, currentPage) {
+                              if (isLaserMode) {
+                                  detectDragGestures { change, _ ->
+                                      change.consume()
+                                      val list = pageAnnotations.getOrPut(currentPage) { mutableListOf() }
+                                      list.add(LaserPoint(change.position, laserColor, 18f))
+                                      val serialized = list.takeLast(300).joinToString(";") {
+                                          "${it.offset.x},${it.offset.y},${laserColor.value.toInt()}"
+                                      }
+                                      prefs.edit().putString("page_$currentPage", serialized).apply()
+                                  }
+                              } else {
+                                  detectTapGestures(
+                                      onDoubleTap = {
+                                          scale = if (scale > 1.2f) 1f else 2.4f
+                                          offset = Offset.Zero
+                                      },
+                                      onTap = {
+                                          onToggleImmersive()
+                                      }
+                                  )
+                              }
+                          },
                       contentAlignment = Alignment.Center
                   ) {
                       if (currentBitmap != null) {
-                          Image(
-                              bitmap = currentBitmap!!.asImageBitmap(),
-                              contentDescription = "Snell Page",
-                              modifier = Modifier.fillMaxSize()
-                          )
+                          Box(
+                              modifier = Modifier
+                                  .graphicsLayer(
+                                      scaleX = scale,
+                                      scaleY = scale,
+                                      translationX = offset.x,
+                                      translationY = offset.y
+                                  )
+                          ) {
+                              Image(
+                                  bitmap = currentBitmap!!.asImageBitmap(),
+                                  contentDescription = "Snell Reference",
+                                  modifier = Modifier
+                                      .fillMaxWidth()
+                                      .shadow(30.dp, spotColor = Color(0xFF00F0FF))
+                              )
+
+                              // طبقة تظليل وحفظ الملاحظات
+                              Canvas(modifier = Modifier.matchParentSize()) {
+                                  pageAnnotations[currentPage]?.forEach { pt ->
+                                      drawCircle(
+                                          color = pt.color,
+                                          radius = pt.radius,
+                                          center = pt.offset
+                                      )
+                                  }
+                              }
+                          }
                       } else {
                           Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                              CircularProgressIndicator(color = Color(0xFF38BDF8))
-                              Spacer(modifier = Modifier.height(12.dp))
-                              Text("Loading Snell Reference...", color = Color.White)
+                              CircularProgressIndicator(color = Color(0xFF00F0FF), strokeWidth = 3.dp)
+                              Spacer(modifier = Modifier.height(16.dp))
+                              Text("INITIALIZING NEURAL SNELL ENGINE...", color = Color(0xFF00F0FF), fontSize = 12.sp, letterSpacing = 2.sp)
                           }
                       }
                   }
 
-                  Row(
-                      modifier = Modifier
-                          .fillMaxWidth()
-                          .background(Color(0xFF0F172A))
-                          .padding(12.dp),
-                      horizontalArrangement = Arrangement.SpaceBetween,
-                      verticalAlignment = Alignment.CenterVertically
+                  // الشريط العلوي الزجاجي الهولوجرامي (HUD Top Bar)
+                  AnimatedVisibility(
+                      visible = !isImmersive,
+                      enter = slideInVertically() + fadeIn(),
+                      exit = slideOutVertically() + fadeOut(),
+                      modifier = Modifier.align(Alignment.TopCenter)
                   ) {
-                      Button(
-                          onClick = { if (currentPage > 0) currentPage-- },
-                          enabled = currentPage > 0,
-                          colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155))
+                      Row(
+                          modifier = Modifier
+                              .fillMaxWidth()
+                              .padding(top = 28.dp, start = 16.dp, end = 16.dp)
+                              .clip(RoundedCornerShape(22.dp))
+                              .background(Color(0xD9060E1E))
+                              .border(1.dp, Brush.horizontalGradient(listOf(Color(0xFF00F0FF).copy(alpha = pulseGlow), Color(0xFF7000FF))), RoundedCornerShape(22.dp))
+                              .padding(horizontal = 16.dp, vertical = 12.dp),
+                          verticalAlignment = Alignment.CenterVertically,
+                          horizontalArrangement = Arrangement.SpaceBetween
                       ) {
-                          Text("◀ Prev")
+                          Row(verticalAlignment = Alignment.CenterVertically) {
+                              Box(
+                                  modifier = Modifier
+                                      .size(10.dp)
+                                      .clip(CircleShape)
+                                      .background(Color(0xFF00F0FF))
+                                      .shadow(12.dp, Color(0xFF00F0FF))
+                              )
+                              Spacer(modifier = Modifier.width(10.dp))
+                              Column {
+                                  Text("SNELL 10th EDITION", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp, letterSpacing = 1.sp)
+                                  Text("AI MEDICAL COGNITION", color = Color(0xFF00F0FF), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                              }
+                          }
+
+                          Button(
+                              onClick = { showIndex = !showIndex },
+                              colors = ButtonDefaults.buttonColors(containerColor = Color(0x3300F0FF)),
+                              shape = RoundedCornerShape(12.dp),
+                              border = ButtonDefaults.outlinedButtonBorder.copy(brush = Brush.linearGradient(listOf(Color(0xFF00F0FF), Color(0xFF7000FF))))
+                          ) {
+                              Text("INDEX 📑", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                          }
+
+                          Text(
+                              text = "${currentPage + 1} / $totalPages",
+                              color = Color(0xFF7DD3FC),
+                              fontSize = 13.sp,
+                              fontWeight = FontWeight.Bold
+                          )
+                      }
+                  }
+
+                  // لوحة الفصول المستقبلية المنبثقة
+                  if (showIndex) {
+                      val chapters = listOf(
+                          "01 // INTRODUCTION & SYSTEMIC OVERVIEW" to 1,
+                          "02 // THORACIC WALL & PLEURAL CAVITY" to 45,
+                          "03 // HEART & MEDIASTINAL STRUCTURES" to 110,
+                          "04 // ANTERIOR ABDOMINAL WALL & INGUINAL CANAL" to 195,
+                          "05 // GASTROINTESTINAL ORGANS & BLOOD SUPPLY" to 280,
+                          "06 // PELVIS, PERINEUM & UROGENITAL TRACT" to 380,
+                          "07 // UPPER LIMB, PLEXUS & NEUROVASCULAR" to 490,
+                          "08 // LOWER LIMB, GLUTEAL & LOCOMOTION" to 630,
+                          "09 // HEAD, NECK & 12 CRANIAL NERVES" to 770
+                      )
+                      Card(
+                          modifier = Modifier
+                              .fillMaxWidth()
+                              .padding(top = 95.dp, start = 20.dp, end = 20.dp)
+                              .clip(RoundedCornerShape(20.dp))
+                              .background(Color(0xF0030816))
+                              .border(1.5.dp, Color(0xFF00F0FF), RoundedCornerShape(20.dp)),
+                          colors = CardDefaults.cardColors(containerColor = Color(0xF0030816))
+                      ) {
+                          LazyColumn(modifier = Modifier.height(280.dp).padding(10.dp)) {
+                              items(chapters) { ch ->
+                                  Text(
+                                      text = ch.first,
+                                      color = Color.White,
+                                      modifier = Modifier
+                                          .fillMaxWidth()
+                                          .clickable {
+                                              currentPage = ch.second.coerceIn(0, totalPages - 1)
+                                              showIndex = false
+                                          }
+                                          .padding(vertical = 12.dp, horizontal = 14.dp),
+                                      fontSize = 12.sp,
+                                      fontWeight = FontWeight.Medium,
+                                      letterSpacing = 0.5.sp
+                                  )
+                                  Divider(color = Color(0x2200F0FF))
+                              }
+                          }
+                      }
+                  }
+
+                  // أدوات الـ Cyber HUD العائمة الجانبية
+                  Column(
+                      modifier = Modifier
+                          .align(Alignment.CenterEnd)
+                          .padding(end = 16.dp),
+                      verticalArrangement = Arrangement.spacedBy(12.dp)
+                  ) {
+                      FloatingActionButton(
+                          onClick = onToggleImmersive,
+                          containerColor = if (isImmersive) Color(0xFF7000FF) else Color(0xCC050E1E),
+                          contentColor = Color(0xFF00F0FF),
+                          shape = CircleShape,
+                          modifier = Modifier.size(48.dp).border(1.dp, Color(0xFF00F0FF), CircleShape)
+                      ) {
+                          Text(if (isImmersive) "🗗" else "⛶", fontSize = 18.sp)
                       }
 
-                      Slider(
-                          value = currentPage.toFloat(),
-                          onValueChange = { currentPage = it.toInt() },
-                          valueRange = 0f..(totalPages - 1).coerceAtLeast(1).toFloat(),
-                          modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
-                          colors = SliderDefaults.colors(
-                              thumbColor = Color(0xFF38BDF8),
-                              activeTrackColor = Color(0xFF2563EB)
-                          )
-                      )
-
-                      Button(
-                          onClick = { if (currentPage < totalPages - 1) currentPage++ },
-                          enabled = currentPage < totalPages - 1,
-                          colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155))
+                      FloatingActionButton(
+                          onClick = { isLaserMode = !isLaserMode },
+                          containerColor = if (isLaserMode) Color(0xFF00F0FF) else Color(0xCC050E1E),
+                          contentColor = if (isLaserMode) Color.Black else Color(0xFF00F0FF),
+                          shape = CircleShape,
+                          modifier = Modifier.size(48.dp).border(1.dp, Color(0xFF00F0FF), CircleShape)
                       ) {
-                          Text("Next ▶")
+                          Text("🖊️", fontSize = 17.sp)
+                      }
+
+                      if (isLaserMode) {
+                          FloatingActionButton(
+                              onClick = { laserColor = Color(0x9900F0FF) },
+                              containerColor = Color(0xFF00F0FF),
+                              shape = CircleShape,
+                              modifier = Modifier.size(38.dp)
+                          ) {}
+                          FloatingActionButton(
+                              onClick = { laserColor = Color(0x99FACC15) },
+                              containerColor = Color(0xFFFACC15),
+                              shape = CircleShape,
+                              modifier = Modifier.size(38.dp)
+                          ) {}
+                          FloatingActionButton(
+                              onClick = {
+                                  pageAnnotations[currentPage]?.clear()
+                                  prefs.edit().remove("page_$currentPage").apply()
+                              },
+                              containerColor = Color(0xFFEF4444),
+                              contentColor = Color.White,
+                              shape = CircleShape,
+                              modifier = Modifier.size(38.dp)
+                          ) {
+                              Text("✕", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                          }
+                      }
+
+                      if (scale > 1f) {
+                          FloatingActionButton(
+                              onClick = {
+                                  scale = 1f
+                                  offset = Offset.Zero
+                              },
+                              containerColor = Color(0xCC050E1E),
+                              contentColor = Color(0xFF00F0FF),
+                              shape = CircleShape,
+                              modifier = Modifier.size(44.dp).border(1.dp, Color(0xFF00F0FF), CircleShape)
+                          ) {
+                              Text("1X", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                          }
+                      }
+                  }
+
+                  // شريط التنقل الهولوجرامي السفلي
+                  AnimatedVisibility(
+                      visible = !isImmersive,
+                      enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                      exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+                      modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 90.dp)
+                  ) {
+                      Row(
+                          modifier = Modifier
+                              .fillMaxWidth()
+                              .padding(horizontal = 20.dp)
+                              .clip(RoundedCornerShape(26.dp))
+                              .background(Color(0xD9060E1E))
+                              .border(1.dp, Color(0x4400F0FF), RoundedCornerShape(26.dp))
+                              .padding(horizontal = 14.dp, vertical = 6.dp),
+                          verticalAlignment = Alignment.CenterVertically
+                      ) {
+                          IconButton(onClick = { if (currentPage > 0) currentPage-- }) {
+                              Text("◀", color = Color(0xFF00F0FF), fontSize = 18.sp)
+                          }
+
+                          Slider(
+                              value = currentPage.toFloat(),
+                              onValueChange = { currentPage = it.toInt() },
+                              valueRange = 0f..(totalPages - 1).toFloat(),
+                              modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                              colors = SliderDefaults.colors(
+                                  thumbColor = Color(0xFF00F0FF),
+                                  activeTrackColor = Color(0xFF00F0FF),
+                                  inactiveTrackColor = Color(0x3300F0FF)
+                              )
+                          )
+
+                          IconButton(onClick = { if (currentPage < totalPages - 1) currentPage++ }) {
+                              Text("▶", color = Color(0xFF00F0FF), fontSize = 18.sp)
+                          }
                       }
                   }
               }
           }
 
           @Composable
-          fun ClinicalQuizScreen() {
+          fun CyberQuizScreen(modifier: Modifier = Modifier) {
               val questions = remember {
                   listOf(
-                      QuizQuestion(
-                          scenario = "A 45-year-old male undergoes pleural tapping for pleural effusion. To avoid injury to the intercostal neurovascular bundle, the needle should be inserted:",
-                          options = listOf("Directly at the lower border of rib", "Immediately above the upper border of rib", "In the center of intercostal space", "Directly into costal groove"),
-                          answerIndex = 1,
-                          explanation = "The intercostal vein, artery, and nerve (VAN) run in the costal groove along the lower border of the rib. Therefore, the needle must be passed immediately above the upper border of the rib below."
+                      CyberCase(
+                          code = "CLINICAL CASE // 01",
+                          title = "Thoracentesis Neurovascular Protection",
+                          vignette = "A 45-year-old male undergoes pleural fluid aspiration. To prevent injury to the neurovascular bundle, the needle should strictly penetrate:",
+                          options = listOf("Directly along lower rib margin", "Directly above upper margin of lower rib", "Middle point of intercostal muscles", "Adjacent to internal thoracic groove"),
+                          correct = 1,
+                          debrief = "The Intercostal VAN (Vein, Artery, Nerve) travels in the costal groove on the inferior rib margin. Needle placement right above the rib below is crucial."
                       ),
-                      QuizQuestion(
-                          scenario = "A patient presents with 'Foot Drop' and loss of sensation over the dorsum of the foot following a fractured neck of the fibula. Which nerve is injured?",
-                          options = listOf("Tibial nerve", "Femoral nerve", "Common fibular (peroneal) nerve", "Obturator nerve"),
-                          answerIndex = 2,
-                          explanation = "The common fibular nerve winds subcutaneous around the neck of the fibula where it is vulnerable to trauma, causing paralysis of all dorsiflexors and evertors (foot drop)."
-                      ),
-                      QuizQuestion(
-                          scenario = "During a thyroidectomy, a surgeon accidentally cuts a nerve closely associated with the inferior thyroid artery. What clinical deficit will the patient show?",
-                          options = listOf("Loss of taste on anterior tongue", "Hoarseness of voice", "Loss of sensation to face", "Inability to elevate shoulder"),
-                          answerIndex = 1,
-                          explanation = "The recurrent laryngeal nerve is intimately related to the inferior thyroid artery and supplies all intrinsic laryngeal muscles except the cricothyroid. Damage leads to hoarseness."
-                      ),
-                      QuizQuestion(
-                          scenario = "A 24-year-old cyclist complains of numbness and tingling in the lateral three and a half fingers and thenar muscle weakness. Which structure is compressing the affected nerve?",
-                          options = listOf("Bicipital aponeurosis", "Flexor retinaculum", "Extensor retinaculum", "Pronator teres"),
-                          answerIndex = 1,
-                          explanation = "Carpal Tunnel Syndrome involves compression of the median nerve beneath the flexor retinaculum (transverse carpal ligament)."
+                      CyberCase(
+                          code = "CLINICAL CASE // 02",
+                          title = "Common Fibular Nerve Lesion",
+                          vignette = "Following blunt impact to the proximal neck of the fibula, a patient presents with sudden Foot Drop and sensory deficit across the foot dorsum. What nerve is involved?",
+                          options = listOf("Tibial nerve branch", "Common fibular (peroneal) nerve", "Obturator nerve", "Femoral nerve terminal"),
+                          correct = 1,
+                          debrief = "The common fibular nerve courses subcutaneously right against the neck of the fibula, rendering it susceptible to direct trauma and paralysis of dorsiflexors."
                       )
                   )
               }
 
               var qIndex by remember { mutableStateOf(0) }
-              var score by remember { mutableStateOf(0) }
-              var selectedAnswer by remember { mutableStateOf<Int?>(null) }
-              var showExplanation by remember { mutableStateOf(false) }
-              var quizDone by remember { mutableStateOf(false) }
+              var revealed by remember { mutableStateOf(false) }
+              var selected by remember { mutableStateOf<Int?>(null) }
 
-              if (quizDone) {
-                  Column(
-                      modifier = Modifier.fillMaxSize().padding(24.dp),
-                      verticalArrangement = Arrangement.Center,
-                      horizontalAlignment = Alignment.CenterHorizontally
+              Column(
+                  modifier = modifier
+                      .fillMaxSize()
+                      .padding(20.dp),
+                  verticalArrangement = Arrangement.spacedBy(16.dp)
+              ) {
+                  Text(questions[qIndex].code, color = Color(0xFF00F0FF), fontSize = 11.sp, letterSpacing = 2.sp, fontWeight = FontWeight.Bold)
+                  Text(questions[qIndex].title, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+
+                  Card(
+                      colors = CardDefaults.cardColors(containerColor = Color(0xCC091222)),
+                      shape = RoundedCornerShape(18.dp),
+                      modifier = Modifier.fillMaxWidth().border(1.dp, Color(0x3300F0FF), RoundedCornerShape(18.dp))
                   ) {
-                      Text("Quiz Complete! 🎓", color = Color(0xFF38BDF8), fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                      Spacer(modifier = Modifier.height(10.dp))
-                      Text("Your Score: $score / ${questions.size}", color = Color.White, fontSize = 20.sp)
-                      Spacer(modifier = Modifier.height(20.dp))
+                      Text(
+                          text = questions[qIndex].vignette,
+                          color = Color(0xFFE2E8F0),
+                          fontSize = 15.sp,
+                          lineHeight = 24.sp,
+                          modifier = Modifier.padding(18.dp)
+                      )
+                  }
+
+                  questions[qIndex].options.forEachIndexed { i, opt ->
+                      val btnBg = when {
+                          revealed && i == questions[qIndex].correct -> Color(0xFF059669)
+                          revealed && selected == i && i != questions[qIndex].correct -> Color(0xFFDC2626)
+                          else -> Color(0x990A172D)
+                      }
                       Button(
                           onClick = {
-                              qIndex = 0
-                              score = 0
-                              selectedAnswer = null
-                              showExplanation = false
-                              quizDone = false
+                              if (!revealed) {
+                                  selected = i
+                                  revealed = true
+                              }
                           },
-                          colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
+                          colors = ButtonDefaults.buttonColors(containerColor = btnBg),
+                          shape = RoundedCornerShape(14.dp),
+                          modifier = Modifier.fillMaxWidth().border(1.dp, Color(0x2200F0FF), RoundedCornerShape(14.dp))
                       ) {
-                          Text("Retake Snell Quiz 🔄", color = Color.White)
+                          Text(opt, color = Color.White, fontSize = 14.sp, modifier = Modifier.padding(6.dp))
                       }
                   }
-              } else {
-                  val q = questions[qIndex]
-                  Column(
-                      modifier = Modifier
-                          .fillMaxSize()
-                          .verticalScroll(rememberScrollState())
-                          .padding(16.dp)
-                  ) {
-                      Text("Clinical Case ${qIndex + 1} of ${questions.size}", color = Color(0xFF94A3B8), fontSize = 13.sp)
-                      Spacer(modifier = Modifier.height(8.dp))
-                      Text(q.scenario, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, lineHeight = 22.sp)
-                      Spacer(modifier = Modifier.height(16.dp))
 
-                      q.options.forEachIndexed { index, option ->
-                          val btnColor = when {
-                              showExplanation && index == q.answerIndex -> Color(0xFF166534)
-                              showExplanation && selectedAnswer == index && index != q.answerIndex -> Color(0xFF991B1B)
-                              else -> Color(0xFF1E293B)
-                          }
-                          OutlinedButton(
-                              onClick = {
-                                  if (!showExplanation) {
-                                      selectedAnswer = index
-                                      showExplanation = true
-                                      if (index == q.answerIndex) score++
-                                  }
-                              },
-                              modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                              colors = ButtonDefaults.outlinedButtonColors(containerColor = btnColor),
-                              shape = RoundedCornerShape(10.dp)
-                          ) {
-                              Text(option, color = Color.White, fontSize = 14.sp, modifier = Modifier.padding(6.dp))
+                  if (revealed) {
+                      Card(
+                          colors = CardDefaults.cardColors(containerColor = Color(0xCC0C1A30)),
+                          shape = RoundedCornerShape(14.dp),
+                          modifier = Modifier.fillMaxWidth().border(1.dp, Color(0xFF7000FF), RoundedCornerShape(14.dp))
+                      ) {
+                          Column(modifier = Modifier.padding(14.dp)) {
+                              Text("⚡ NEURAL CLINICAL DEBRIEF", color = Color(0xFF00F0FF), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                              Spacer(modifier = Modifier.height(4.dp))
+                              Text(questions[qIndex].debrief, color = Color(0xFFCBD5E1), fontSize = 13.sp, lineHeight = 20.sp)
                           }
                       }
 
-                      if (showExplanation) {
-                          Spacer(modifier = Modifier.height(12.dp))
-                          Card(
-                              colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
-                              shape = RoundedCornerShape(10.dp),
-                              modifier = Modifier.fillMaxWidth()
-                          ) {
-                              Column(modifier = Modifier.padding(12.dp)) {
-                                  Text("💡 Snell Clinical Correlation:", color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                  Spacer(modifier = Modifier.height(4.dp))
-                                  Text(q.explanation, color = Color(0xFFE2E8F0), fontSize = 13.sp, lineHeight = 20.sp)
-                              }
-                          }
-
-                          Spacer(modifier = Modifier.height(14.dp))
-                          Button(
-                              onClick = {
-                                  if (qIndex + 1 < questions.size) {
-                                      qIndex++
-                                      showExplanation = false
-                                      selectedAnswer = null
-                                  } else {
-                                      quizDone = true
-                                  }
-                              },
-                              modifier = Modifier.fillMaxWidth(),
-                              colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
-                          ) {
-                              Text(if (qIndex + 1 < questions.size) "Next Case ❯" else "Finish Quiz 🏆", color = Color.White)
-                          }
+                      Button(
+                          onClick = {
+                              qIndex = (qIndex + 1) % questions.size
+                              revealed = false
+                              selected = null
+                          },
+                          colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00F0FF)),
+                          modifier = Modifier.fillMaxWidth(),
+                          shape = RoundedCornerShape(14.dp)
+                      ) {
+                          Text("NEXT SCENARIO ❯", color = Color.Black, fontWeight = FontWeight.Bold)
                       }
                   }
               }
           }
+
+          data class CyberCase(val code: String, val title: String, val vignette: String, val options: List<String>, val correct: Int, val debrief: String)
           EOF
           fi
 
@@ -513,7 +714,6 @@ jobs:
           echo "kotlin.jvm.target.validation.mode=warning" >> gradle.properties
           echo "android.useAndroidX=true" >> gradle.properties
 
-          gradle wrapper --gradle-version 8.9
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
 
@@ -521,5 +721,5 @@ jobs:
         uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: AnatomyMaster-Snell-Complete-APK
+          name: AnatomyMaster-Cyber-Futuristic-APK
           path: app/build/outputs/apk/debug/*.apk
