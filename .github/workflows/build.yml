@@ -17,46 +17,20 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: '8.9'
-
-      - name: Download Snell PDF, Set Up Reader & Build APK
+      - name: Fetch Snell PDF from Release & Build APK
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-          # 1. تثبيت أدوات المعالجة
-          pip install Pillow requests
-          sudo apt-get update && sudo apt-get install -y qpdf ghostscript
-
-          # 2. تنزيل ملف PDF الخاص بكتاب Snell من OneDrive
+          # 1. تنزيل ملف PDF مباشرة من الـ Release الرسمي
           mkdir -p app/src/main/assets
-          python3 - << 'EOF'
-          import urllib.request
-          import os
+          echo "Downloading Snell PDF from Release..."
+          curl -L -o app/src/main/assets/snell_anatomy.pdf "https://github.com/mortadmr2-pixel/AnatomyMaster/releases/download/V1.0/SNELL.S.CLINICAL.ANATOMY.BY.REGIONS.10th.Edition.pdf"
+          ls -lh app/src/main/assets/snell_anatomy.pdf
 
-          # تحويل رابط مشاركة OneDrive إلى رابط تنزيل مباشر
-          one_drive_url = "Https://1drv.ms/b/c/0d33e82edf6dd683/IQAPrzJ4ztqMSbZsOSJm89k7AdqmjAbTgEN-0hv9RS9RFLw"
-          # استبدال الرابط ليصبح رابط تنزيل مباشر
-          dl_url = one_drive_url.replace("1drv.ms/b/c/", "onedrive.live.com/download?cid=").replace("?", "&")
-          print("Downloading Snell Clinical Anatomy PDF...")
-          headers = {'User-Agent': 'Mozilla/5.0'}
-          req = urllib.request.Request(one_drive_url, headers=headers)
-          
-          # اتباع عمليات إعادة التوجيه للحصول على الملف
-          try:
-              import requests
-              r = requests.get(one_drive_url, allow_redirects=True, timeout=120)
-              with open("app/src/main/assets/snell_anatomy.pdf", "wb") as f:
-                  f.write(r.content)
-              print("PDF Downloaded successfully! Size:", os.path.getsize("app/src/main/assets/snell_anatomy.pdf"))
-          except Exception as e:
-              print("Download error:", e)
-          EOF
-
-          # 3. تثبيت أيقونة التطبيق التشريحية وإلغاء أيقونة الروبوت
+          # 2. إزالة أيقونة الروبوت وتثبيت أيقونة القفص الصدري التشريحية
           find app/src/main/res -name "*ic_launcher*" -delete
+          pip install Pillow
+
           python3 - << 'EOF'
           import os
           from PIL import Image, ImageDraw
@@ -119,7 +93,7 @@ jobs:
               f.write(adaptive_xml)
           EOF
 
-          # 4. تحديث كود MainActivity ليحتوي على قارئ PDF كامل + قسم الكويزات المنفصل
+          # 3. تحديث واجهة MainActivity لتشمل قارئ PDF وقسم الكويزات
           TARGET_FILE=$(find app/src/main/java -name "MainActivity.kt" | head -n 1)
           if [ -n "$TARGET_FILE" ]; then
             cat << 'EOF' > "$TARGET_FILE"
@@ -171,7 +145,7 @@ jobs:
           @OptIn(ExperimentalMaterial3Api::class)
           @Composable
           fun SnellMasterApp() {
-              var selectedTab by remember { mutableStateOf(0) } // 0: Snell Book, 1: Clinical Quiz
+              var selectedTab by remember { mutableStateOf(0) }
               var targetPage by remember { mutableStateOf(0) }
 
               Scaffold(
@@ -185,7 +159,7 @@ jobs:
                                       fontSize = 18.sp
                                   )
                                   Text(
-                                      text = if (selectedTab == 0) "10th Edition • Full Book" else "USMLE & Board Style Review",
+                                      text = if (selectedTab == 0) "10th Edition • Full Book" else "High-Yield Clinical Review",
                                       fontSize = 12.sp,
                                       color = Color(0xFF38BDF8)
                                   )
@@ -243,7 +217,7 @@ jobs:
                       SnellChapter("Chapter 1: Introduction & Tissues", 1),
                       SnellChapter("Chapter 2: The Thorax - Wall & Mediastinum", 45),
                       SnellChapter("Chapter 3: The Thorax - Lungs & Heart", 90),
-                      SnellChapter("Chapter 4: The Abdomen - Abdominal Wall", 170),
+                      SnellChapter("Chapter 4: The Abdomen - Wall & Peritoneum", 170),
                       SnellChapter("Chapter 5: The Abdomen - Gastrointestinal Tract", 230),
                       SnellChapter("Chapter 6: The Pelvis & Perineum", 320),
                       SnellChapter("Chapter 7: The Upper Limb", 410),
@@ -253,7 +227,6 @@ jobs:
                   )
               }
 
-              // تهيئة ملف الـ PDF من assets
               LaunchedEffect(Unit) {
                   try {
                       val file = File(context.cacheDir, "snell_anatomy.pdf")
@@ -273,7 +246,6 @@ jobs:
                   }
               }
 
-              // عرض الصفحة المطلوبة
               LaunchedEffect(currentPage, pdfRenderer) {
                   pdfRenderer?.let { renderer ->
                       if (currentPage in 0 until renderer.pageCount) {
@@ -287,7 +259,6 @@ jobs:
               }
 
               Column(modifier = Modifier.fillMaxSize()) {
-                  // شريط التنقل السريع بين الفصول
                   Row(
                       modifier = Modifier
                           .fillMaxWidth()
@@ -340,7 +311,6 @@ jobs:
                       }
                   }
 
-                  // مساحة عرض الصفحة
                   Box(
                       modifier = Modifier
                           .weight(1f)
@@ -363,7 +333,6 @@ jobs:
                       }
                   }
 
-                  // شريط التنقل السفلي للصفحات
                   Row(
                       modifier = Modifier
                           .fillMaxWidth()
@@ -539,7 +508,6 @@ jobs:
           echo "kotlin.jvm.target.validation.mode=warning" >> gradle.properties
           echo "android.useAndroidX=true" >> gradle.properties
 
-          gradle wrapper --gradle-version 8.9
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
 
@@ -547,5 +515,5 @@ jobs:
         uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: AnatomyMaster-Snell-Full-APK
+          name: AnatomyMaster-Snell-Complete-APK
           path: app/build/outputs/apk/debug/*.apk
