@@ -1,1 +1,702 @@
+name: Build Android APK
+on: [push, workflow_dispatch]
 
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Extract Project ZIP
+        run: unzip -o AnatomyMaster_FINAL_Android.zip
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle Environment
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.9'
+          cache-disabled: true
+
+      - name: Fix SDK Compatibility & Build Cyber APK
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+          # 1. حل خطأ checkDebugAarMetadata برفع compileSdk و targetSdk إلى 34 تلقائياً
+          sed -i 's/compileSdk = [0-9]*/compileSdk = 34/g' app/build.gradle app/build.gradle.kts 2>/dev/null || true
+          sed -i 's/compileSdkVersion [0-9]*/compileSdkVersion 34/g' app/build.gradle app/build.gradle.kts 2>/dev/null || true
+          sed -i 's/targetSdk = [0-9]*/targetSdk = 34/g' app/build.gradle app/build.gradle.kts 2>/dev/null || true
+          sed -i 's/targetSdkVersion [0-9]*/targetSdkVersion 34/g' app/build.gradle app/build.gradle.kts 2>/dev/null || true
+
+          # 2. تنزيل كتاب Snell من الـ Release الرسمي
+          mkdir -p app/src/main/assets
+          if [ ! -f "app/src/main/assets/snell_anatomy.pdf" ]; then
+            echo "Downloading Snell PDF..."
+            curl -L -o app/src/main/assets/snell_anatomy.pdf "https://github.com/mortadmr2-pixel/AnatomyMaster/releases/download/V1.0/SNELL.S.CLINICAL.ANATOMY.BY.REGIONS.10th.Edition.pdf"
+          fi
+
+          # 3. تثبيت أيقونة التطبيق النيونية
+          find app/src/main/res -name "*ic_launcher*" -delete
+          pip install Pillow
+
+          python3 - << 'EOF'
+          import os
+          from PIL import Image, ImageDraw
+
+          size = 512
+          img = Image.new("RGBA", (size, size), (3, 7, 18, 255))
+          draw = ImageDraw.Draw(img)
+
+          draw.rounded_rectangle([0, 0, size, size], radius=110, fill=(5, 11, 26))
+          draw.ellipse([50, 50, 462, 462], fill=(10, 25, 50), outline=(0, 240, 255), width=3)
+          draw.ellipse([80, 80, 432, 432], fill=(15, 30, 60))
+
+          for y in range(70, 450, 36):
+              draw.rounded_rectangle([236, y, 276, y + 22], radius=6, fill=(140, 230, 255), outline=(0, 240, 255), width=2)
+
+          draw.polygon([(244, 120), (268, 120), (262, 260), (256, 285), (250, 260)], fill=(210, 245, 255), outline=(0, 240, 255))
+
+          ribs = [
+              (140, 115, 30),
+              (180, 155, 45),
+              (225, 185, 55),
+              (270, 195, 60),
+              (315, 180, 60),
+              (360, 150, 55),
+              (405, 120, 45)
+          ]
+          for cy, span_x, drop_y in ribs:
+              draw.arc([256 - span_x, cy - drop_y, 256, cy + drop_y], start=280, end=75, fill=(0, 240, 255), width=8)
+              draw.arc([256, cy - drop_y, 256 + span_x, cy + drop_y], start=105, end=260, fill=(0, 240, 255), width=8)
+
+          draw.line([(95, 100), (256, 125)], fill=(180, 240, 255), width=9)
+          draw.line([(417, 100), (256, 125)], fill=(180, 240, 255), width=9)
+
+          densities = {
+              "mipmap-mdpi": (48, 108),
+              "mipmap-hdpi": (72, 162),
+              "mipmap-xhdpi": (96, 216),
+              "mipmap-xxhdpi": (144, 324),
+              "mipmap-xxxhdpi": (192, 432)
+          }
+
+          for folder, (sz, fg_sz) in densities.items():
+              path = os.path.join("app/src/main/res", folder)
+              os.makedirs(path, exist_ok=True)
+              legacy = img.resize((sz, sz), Image.Resampling.LANCZOS)
+              legacy.save(os.path.join(path, "ic_launcher.png"), "PNG")
+              legacy.save(os.path.join(path, "ic_launcher_round.png"), "PNG")
+              fg = img.resize((fg_sz, fg_sz), Image.Resampling.LANCZOS)
+              fg.save(os.path.join(path, "ic_launcher_foreground.png"), "PNG")
+
+          v26_dir = "app/src/main/res/mipmap-anydpi-v26"
+          os.makedirs(v26_dir, exist_ok=True)
+          adaptive_xml = '''<?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@android:color/black" />
+              <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+          </adaptive-icon>'''
+          with open(os.path.join(v26_dir, "ic_launcher.xml"), "w") as f:
+              f.write(adaptive_xml)
+          with open(os.path.join(v26_dir, "ic_launcher_round.xml"), "w") as f:
+              f.write(adaptive_xml)
+          EOF
+
+          # 4. تحديث كود MainActivity المتقدم والمتوافق بالكامل
+          TARGET_FILE=$(find app/src/main/java -name "MainActivity.kt" | head -n 1)
+          if [ -n "$TARGET_FILE" ]; then
+            cat << 'EOF' > "$TARGET_FILE"
+          package com.example.anatomymaster
+
+          import android.content.Context
+          import android.graphics.Bitmap
+          import android.graphics.pdf.PdfRenderer
+          import android.os.Bundle
+          import android.os.ParcelFileDescriptor
+          import androidx.activity.ComponentActivity
+          import androidx.activity.compose.setContent
+          import androidx.compose.animation.*
+          import androidx.compose.animation.core.*
+          import androidx.compose.foundation.Canvas
+          import androidx.compose.foundation.Image
+          import androidx.compose.foundation.background
+          import androidx.compose.foundation.border
+          import androidx.compose.foundation.clickable
+          import androidx.compose.foundation.gestures.detectDragGestures
+          import androidx.compose.foundation.gestures.detectTapGestures
+          import androidx.compose.foundation.gestures.rememberTransformableState
+          import androidx.compose.foundation.gestures.transformable
+          import androidx.compose.foundation.layout.*
+          import androidx.compose.foundation.lazy.LazyColumn
+          import androidx.compose.foundation.lazy.items
+          import androidx.compose.foundation.shape.CircleShape
+          import androidx.compose.foundation.shape.RoundedCornerShape
+          import androidx.compose.material3.*
+          import androidx.compose.runtime.*
+          import androidx.compose.ui.Alignment
+          import androidx.compose.ui.Modifier
+          import androidx.compose.ui.draw.clip
+          import androidx.compose.ui.draw.shadow
+          import androidx.compose.ui.geometry.Offset
+          import androidx.compose.ui.graphics.Color
+          import androidx.compose.ui.graphics.asImageBitmap
+          import androidx.compose.ui.graphics.graphicsLayer
+          import androidx.compose.ui.input.pointer.pointerInput
+          import androidx.compose.ui.platform.LocalContext
+          import androidx.compose.ui.text.font.FontWeight
+          import androidx.compose.ui.unit.dp
+          import androidx.compose.ui.unit.sp
+          import java.io.File
+          import java.io.FileOutputStream
+
+          class MainActivity : ComponentActivity() {
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  setContent {
+                      MaterialTheme {
+                          CyberAnatomyMasterApp()
+                      }
+                  }
+              }
+          }
+
+          data class LaserPoint(val offset: Offset, val color: Color, val radius: Float)
+
+          @Composable
+          fun CyberAnatomyMasterApp() {
+              var selectedTab by remember { mutableStateOf(0) }
+              var isImmersive by remember { mutableStateOf(false) }
+
+              Scaffold(
+                  bottomBar = {
+                      AnimatedVisibility(
+                          visible = !isImmersive,
+                          enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                          exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+                      ) {
+                          Box(
+                              modifier = Modifier
+                                  .fillMaxWidth()
+                                  .padding(16.dp)
+                                  .clip(RoundedCornerShape(26.dp))
+                                  .background(Color(0xE6050B14))
+                                  .border(1.5.dp, Color(0xFF00F0FF), RoundedCornerShape(26.dp))
+                          ) {
+                              NavigationBar(
+                                  containerColor = Color.Transparent,
+                                  modifier = Modifier.height(68.dp)
+                              ) {
+                                  NavigationBarItem(
+                                      selected = selectedTab == 0,
+                                      onClick = { selectedTab = 0 },
+                                      label = { Text("NEURAL SNELL", fontWeight = FontWeight.Bold, letterSpacing = 1.sp, fontSize = 11.sp) },
+                                      icon = { Text("⚡", fontSize = 20.sp) },
+                                      colors = NavigationBarItemDefaults.colors(
+                                          selectedTextColor = Color(0xFF00F0FF),
+                                          unselectedTextColor = Color(0xFF64748B),
+                                          indicatorColor = Color(0x3300F0FF)
+                                      )
+                                  )
+                                  NavigationBarItem(
+                                      selected = selectedTab == 1,
+                                      onClick = { selectedTab = 1 },
+                                      label = { Text("CLINICAL MATRIX", fontWeight = FontWeight.Bold, letterSpacing = 1.sp, fontSize = 11.sp) },
+                                      icon = { Text("🧬", fontSize = 20.sp) },
+                                      colors = NavigationBarItemDefaults.colors(
+                                          selectedTextColor = Color(0xFF00F0FF),
+                                          unselectedTextColor = Color(0xFF64748B),
+                                          indicatorColor = Color(0x3300F0FF)
+                                      )
+                                  )
+                              }
+                          }
+                      }
+                  }
+              ) { padding ->
+                  Box(
+                      modifier = Modifier
+                          .fillMaxSize()
+                          .background(Color(0xFF030712))
+                  ) {
+                      if (selectedTab == 0) {
+                          CyberReader(
+                              isImmersive = isImmersive,
+                              onToggleImmersive = { isImmersive = !isImmersive }
+                          )
+                      } else {
+                          CyberQuizScreen(modifier = Modifier.padding(padding))
+                      }
+                  }
+              }
+          }
+
+          @Composable
+          fun CyberReader(isImmersive: Boolean, onToggleImmersive: () -> Unit) {
+              val context = LocalContext.current
+              val prefs = remember { context.getSharedPreferences("snell_cyber_notes", Context.MODE_PRIVATE) }
+
+              var currentPage by remember { mutableStateOf(210) }
+              var totalPages by remember { mutableStateOf(2063) }
+              var currentBitmap by remember { mutableStateOf<Bitmap?>(null) }
+              var pdfRenderer by remember { mutableStateOf<PdfRenderer?>(null) }
+              var showIndex by remember { mutableStateOf(false) }
+
+              var scale by remember { mutableStateOf(1f) }
+              var offset by remember { mutableStateOf(Offset.Zero) }
+
+              val transformState = rememberTransformableState { zoomChange, offsetChange, _ ->
+                  scale = (scale * zoomChange).coerceIn(1f, 5f)
+                  if (scale > 1f) {
+                      offset += offsetChange
+                  } else {
+                      offset = Offset.Zero
+                  }
+              }
+
+              var isLaserMode by remember { mutableStateOf(false) }
+              var laserColor by remember { mutableStateOf(Color(0x9900F0FF)) }
+              val pageAnnotations = remember { mutableStateMapOf<Int, MutableList<LaserPoint>>() }
+
+              LaunchedEffect(currentPage) {
+                  scale = 1f
+                  offset = Offset.Zero
+                  if (!pageAnnotations.containsKey(currentPage)) {
+                      val saved = prefs.getString("page_$currentPage", "") ?: ""
+                      val list = mutableListOf<LaserPoint>()
+                      if (saved.isNotEmpty()) {
+                          saved.split(";").forEach { item ->
+                              val parts = item.split(",")
+                              if (parts.size >= 3) {
+                                  val x = parts[0].toFloatOrNull() ?: 0f
+                                  val y = parts[1].toFloatOrNull() ?: 0f
+                                  val c = parts[2].toIntOrNull() ?: 0x9900F0FF.toInt()
+                                  list.add(LaserPoint(Offset(x, y), Color(c), 16f))
+                              }
+                          }
+                      }
+                      pageAnnotations[currentPage] = list
+                  }
+              }
+
+              LaunchedEffect(Unit) {
+                  try {
+                      val file = File(context.cacheDir, "snell_anatomy.pdf")
+                      if (!file.exists()) {
+                          context.assets.open("snell_anatomy.pdf").use { input ->
+                              FileOutputStream(file).use { output -> input.copyTo(output) }
+                          }
+                      }
+                      val pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+                      val renderer = PdfRenderer(pfd)
+                      pdfRenderer = renderer
+                      totalPages = renderer.pageCount
+                  } catch (e: Exception) {
+                      e.printStackTrace()
+                  }
+              }
+
+              LaunchedEffect(currentPage, pdfRenderer) {
+                  pdfRenderer?.let { renderer ->
+                      if (currentPage in 0 until renderer.pageCount) {
+                          val page = renderer.openPage(currentPage)
+                          val bitmap = Bitmap.createBitmap(page.width, page.height, Bitmap.Config.ARGB_8888)
+                          page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                          page.close()
+                          currentBitmap = bitmap
+                      }
+                  }
+              }
+
+              Box(modifier = Modifier.fillMaxSize()) {
+                  Box(
+                      modifier = Modifier
+                          .fillMaxSize()
+                          .transformable(state = transformState, enabled = !isLaserMode)
+                          .pointerInput(isLaserMode, currentPage) {
+                              if (isLaserMode) {
+                                  detectDragGestures { change, _ ->
+                                      change.consume()
+                                      val list = pageAnnotations.getOrPut(currentPage) { mutableListOf() }
+                                      list.add(LaserPoint(change.position, laserColor, 18f))
+                                      val serialized = list.takeLast(300).joinToString(";") {
+                                          "${it.offset.x},${it.offset.y},${laserColor.value.toInt()}"
+                                      }
+                                      prefs.edit().putString("page_$currentPage", serialized).apply()
+                                  }
+                              } else {
+                                  detectTapGestures(
+                                      onDoubleTap = {
+                                          scale = if (scale > 1.2f) 1f else 2.4f
+                                          offset = Offset.Zero
+                                      },
+                                      onTap = {
+                                          onToggleImmersive()
+                                      }
+                                  )
+                              }
+                          },
+                      contentAlignment = Alignment.Center
+                  ) {
+                      if (currentBitmap != null) {
+                          Box(
+                              modifier = Modifier
+                                  .graphicsLayer(
+                                      scaleX = scale,
+                                      scaleY = scale,
+                                      translationX = offset.x,
+                                      translationY = offset.y
+                                  )
+                          ) {
+                              Image(
+                                  bitmap = currentBitmap!!.asImageBitmap(),
+                                  contentDescription = "Snell Reference",
+                                  modifier = Modifier
+                                      .fillMaxWidth()
+                                      .shadow(16.dp, RoundedCornerShape(8.dp))
+                              )
+
+                              Canvas(modifier = Modifier.matchParentSize()) {
+                                  pageAnnotations[currentPage]?.forEach { pt ->
+                                      drawCircle(
+                                          color = pt.color,
+                                          radius = pt.radius,
+                                          center = pt.offset
+                                      )
+                                  }
+                              }
+                          }
+                      } else {
+                          Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                              CircularProgressIndicator(color = Color(0xFF00F0FF), strokeWidth = 3.dp)
+                              Spacer(modifier = Modifier.height(16.dp))
+                              Text("INITIALIZING NEURAL SNELL ENGINE...", color = Color(0xFF00F0FF), fontSize = 12.sp, letterSpacing = 2.sp)
+                          }
+                      }
+                  }
+
+                  AnimatedVisibility(
+                      visible = !isImmersive,
+                      enter = slideInVertically() + fadeIn(),
+                      exit = slideOutVertically() + fadeOut(),
+                      modifier = Modifier.align(Alignment.TopCenter)
+                  ) {
+                      Row(
+                          modifier = Modifier
+                              .fillMaxWidth()
+                              .padding(top = 28.dp, start = 16.dp, end = 16.dp)
+                              .clip(RoundedCornerShape(22.dp))
+                              .background(Color(0xD9060E1E))
+                              .border(1.dp, Color(0xFF00F0FF), RoundedCornerShape(22.dp))
+                              .padding(horizontal = 16.dp, vertical = 12.dp),
+                          verticalAlignment = Alignment.CenterVertically,
+                          horizontalArrangement = Arrangement.SpaceBetween
+                      ) {
+                          Row(verticalAlignment = Alignment.CenterVertically) {
+                              Box(
+                                  modifier = Modifier
+                                      .size(12.dp)
+                                      .clip(CircleShape)
+                                      .background(Color(0xFF00F0FF))
+                              )
+                              Spacer(modifier = Modifier.width(10.dp))
+                              Column {
+                                  Text("SNELL 10th EDITION", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp, letterSpacing = 1.sp)
+                                  Text("AI MEDICAL COGNITION", color = Color(0xFF00F0FF), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                              }
+                          }
+
+                          Button(
+                              onClick = { showIndex = !showIndex },
+                              colors = ButtonDefaults.buttonColors(containerColor = Color(0x3300F0FF)),
+                              shape = RoundedCornerShape(12.dp),
+                              modifier = Modifier.border(1.dp, Color(0xFF00F0FF), RoundedCornerShape(12.dp))
+                          ) {
+                              Text("INDEX 📑", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                          }
+
+                          Text(
+                              text = "${currentPage + 1} / $totalPages",
+                              color = Color(0xFF7DD3FC),
+                              fontSize = 13.sp,
+                              fontWeight = FontWeight.Bold
+                          )
+                      }
+                  }
+
+                  if (showIndex) {
+                      val chapters = listOf(
+                          "01 // INTRODUCTION & SYSTEMIC OVERVIEW" to 1,
+                          "02 // THORACIC WALL & PLEURAL CAVITY" to 45,
+                          "03 // HEART & MEDIASTINAL STRUCTURES" to 110,
+                          "04 // ANTERIOR ABDOMINAL WALL & INGUINAL CANAL" to 195,
+                          "05 // GASTROINTESTINAL ORGANS & BLOOD SUPPLY" to 280,
+                          "06 // PELVIS, PERINEUM & UROGENITAL TRACT" to 380,
+                          "07 // UPPER LIMB, PLEXUS & NEUROVASCULAR" to 490,
+                          "08 // LOWER LIMB, GLUTEAL & LOCOMOTION" to 630,
+                          "09 // HEAD, NECK & 12 CRANIAL NERVES" to 770
+                      )
+                      Card(
+                          modifier = Modifier
+                              .fillMaxWidth()
+                              .padding(top = 95.dp, start = 20.dp, end = 20.dp)
+                              .clip(RoundedCornerShape(20.dp))
+                              .background(Color(0xF0030816))
+                              .border(1.5.dp, Color(0xFF00F0FF), RoundedCornerShape(20.dp)),
+                          colors = CardDefaults.cardColors(containerColor = Color(0xF0030816))
+                      ) {
+                          LazyColumn(modifier = Modifier.height(280.dp).padding(10.dp)) {
+                              items(chapters) { ch ->
+                                  Text(
+                                      text = ch.first,
+                                      color = Color.White,
+                                      modifier = Modifier
+                                          .fillMaxWidth()
+                                          .clickable {
+                                              currentPage = ch.second.coerceIn(0, totalPages - 1)
+                                              showIndex = false
+                                          }
+                                          .padding(vertical = 12.dp, horizontal = 14.dp),
+                                      fontSize = 12.sp,
+                                      fontWeight = FontWeight.Medium,
+                                      letterSpacing = 0.5.sp
+                                  )
+                                  Divider(color = Color(0x2200F0FF))
+                              }
+                          }
+                      }
+                  }
+
+                  Column(
+                      modifier = Modifier
+                          .align(Alignment.CenterEnd)
+                          .padding(end = 16.dp),
+                      verticalArrangement = Arrangement.spacedBy(12.dp)
+                  ) {
+                      FloatingActionButton(
+                          onClick = onToggleImmersive,
+                          containerColor = if (isImmersive) Color(0xFF7000FF) else Color(0xCC050E1E),
+                          contentColor = Color(0xFF00F0FF),
+                          shape = CircleShape,
+                          modifier = Modifier.size(48.dp).border(1.dp, Color(0xFF00F0FF), CircleShape)
+                      ) {
+                          Text(if (isImmersive) "🗗" else "⛶", fontSize = 18.sp)
+                      }
+
+                      FloatingActionButton(
+                          onClick = { isLaserMode = !isLaserMode },
+                          containerColor = if (isLaserMode) Color(0xFF00F0FF) else Color(0xCC050E1E),
+                          contentColor = if (isLaserMode) Color.Black else Color(0xFF00F0FF),
+                          shape = CircleShape,
+                          modifier = Modifier.size(48.dp).border(1.dp, Color(0xFF00F0FF), CircleShape)
+                      ) {
+                          Text("🖊️", fontSize = 17.sp)
+                      }
+
+                      if (isLaserMode) {
+                          FloatingActionButton(
+                              onClick = { laserColor = Color(0x9900F0FF) },
+                              containerColor = Color(0xFF00F0FF),
+                              shape = CircleShape,
+                              modifier = Modifier.size(38.dp)
+                          ) {}
+                          FloatingActionButton(
+                              onClick = { laserColor = Color(0x99FACC15) },
+                              containerColor = Color(0xFFFACC15),
+                              shape = CircleShape,
+                              modifier = Modifier.size(38.dp)
+                          ) {}
+                          FloatingActionButton(
+                              onClick = {
+                                  pageAnnotations[currentPage]?.clear()
+                                  prefs.edit().remove("page_$currentPage").apply()
+                              },
+                              containerColor = Color(0xFFEF4444),
+                              contentColor = Color.White,
+                              shape = CircleShape,
+                              modifier = Modifier.size(38.dp)
+                          ) {
+                              Text("✕", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                          }
+                      }
+
+                      if (scale > 1f) {
+                          FloatingActionButton(
+                              onClick = {
+                                  scale = 1f
+                                  offset = Offset.Zero
+                              },
+                              containerColor = Color(0xCC050E1E),
+                              contentColor = Color(0xFF00F0FF),
+                              shape = CircleShape,
+                              modifier = Modifier.size(44.dp).border(1.dp, Color(0xFF00F0FF), CircleShape)
+                          ) {
+                              Text("1X", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                          }
+                      }
+                  }
+
+                  AnimatedVisibility(
+                      visible = !isImmersive,
+                      enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                      exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+                      modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 90.dp)
+                  ) {
+                      Row(
+                          modifier = Modifier
+                              .fillMaxWidth()
+                              .padding(horizontal = 20.dp)
+                              .clip(RoundedCornerShape(26.dp))
+                              .background(Color(0xD9060E1E))
+                              .border(1.dp, Color(0x4400F0FF), RoundedCornerShape(26.dp))
+                              .padding(horizontal = 14.dp, vertical = 6.dp),
+                          verticalAlignment = Alignment.CenterVertically
+                      ) {
+                          IconButton(onClick = { if (currentPage > 0) currentPage-- }) {
+                              Text("◀", color = Color(0xFF00F0FF), fontSize = 18.sp)
+                          }
+
+                          Slider(
+                              value = currentPage.toFloat(),
+                              onValueChange = { currentPage = it.toInt() },
+                              valueRange = 0f..(totalPages - 1).toFloat(),
+                              modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                              colors = SliderDefaults.colors(
+                                  thumbColor = Color(0xFF00F0FF),
+                                  activeTrackColor = Color(0xFF00F0FF),
+                                  inactiveTrackColor = Color(0x3300F0FF)
+                              )
+                          )
+
+                          IconButton(onClick = { if (currentPage < totalPages - 1) currentPage++ }) {
+                              Text("▶", color = Color(0xFF00F0FF), fontSize = 18.sp)
+                          }
+                      }
+                  }
+              }
+          }
+
+          @Composable
+          fun CyberQuizScreen(modifier: Modifier = Modifier) {
+              val questions = remember {
+                  listOf(
+                      CyberCase(
+                          code = "CLINICAL CASE // 01",
+                          title = "Thoracentesis Neurovascular Protection",
+                          vignette = "A 45-year-old male undergoes pleural fluid aspiration. To prevent injury to the neurovascular bundle, the needle should strictly penetrate:",
+                          options = listOf("Directly along lower rib margin", "Directly above upper margin of lower rib", "Middle point of intercostal muscles", "Adjacent to internal thoracic groove"),
+                          correct = 1,
+                          debrief = "The Intercostal VAN (Vein, Artery, Nerve) travels in the costal groove on the inferior rib margin. Needle placement right above the rib below is crucial."
+                      ),
+                      CyberCase(
+                          code = "CLINICAL CASE // 02",
+                          title = "Common Fibular Nerve Lesion",
+                          vignette = "Following blunt impact to the proximal neck of the fibula, a patient presents with sudden Foot Drop and sensory deficit across the foot dorsum. What nerve is involved?",
+                          options = listOf("Tibial nerve branch", "Common fibular (peroneal) nerve", "Obturator nerve", "Femoral nerve terminal"),
+                          correct = 1,
+                          debrief = "The common fibular nerve courses subcutaneously right against the neck of the fibula, rendering it susceptible to direct trauma and paralysis of dorsiflexors."
+                      )
+                  )
+              }
+
+              var qIndex by remember { mutableStateOf(0) }
+              var revealed by remember { mutableStateOf(false) }
+              var selected by remember { mutableStateOf<Int?>(null) }
+
+              Column(
+                  modifier = modifier
+                      .fillMaxSize()
+                      .padding(20.dp),
+                  verticalArrangement = Arrangement.spacedBy(16.dp)
+              ) {
+                  Text(questions[qIndex].code, color = Color(0xFF00F0FF), fontSize = 11.sp, letterSpacing = 2.sp, fontWeight = FontWeight.Bold)
+                  Text(questions[qIndex].title, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+
+                  Card(
+                      colors = CardDefaults.cardColors(containerColor = Color(0xCC091222)),
+                      shape = RoundedCornerShape(18.dp),
+                      modifier = Modifier.fillMaxWidth().border(1.dp, Color(0x3300F0FF), RoundedCornerShape(18.dp))
+                  ) {
+                      Text(
+                          text = questions[qIndex].vignette,
+                          color = Color(0xFFE2E8F0),
+                          fontSize = 15.sp,
+                          lineHeight = 24.sp,
+                          modifier = Modifier.padding(18.dp)
+                      )
+                  }
+
+                  questions[qIndex].options.forEachIndexed { i, opt ->
+                      val btnBg = when {
+                          revealed && i == questions[qIndex].correct -> Color(0xFF059669)
+                          revealed && selected == i && i != questions[qIndex].correct -> Color(0xFFDC2626)
+                          else -> Color(0x990A172D)
+                      }
+                      Button(
+                          onClick = {
+                              if (!revealed) {
+                                  selected = i
+                                  revealed = true
+                              }
+                          },
+                          colors = ButtonDefaults.buttonColors(containerColor = btnBg),
+                          shape = RoundedCornerShape(14.dp),
+                          modifier = Modifier.fillMaxWidth().border(1.dp, Color(0x2200F0FF), RoundedCornerShape(14.dp))
+                      ) {
+                          Text(opt, color = Color.White, fontSize = 14.sp, modifier = Modifier.padding(6.dp))
+                      }
+                  }
+
+                  if (revealed) {
+                      Card(
+                          colors = CardDefaults.cardColors(containerColor = Color(0xCC0C1A30)),
+                          shape = RoundedCornerShape(14.dp),
+                          modifier = Modifier.fillMaxWidth().border(1.dp, Color(0xFF7000FF), RoundedCornerShape(14.dp))
+                      ) {
+                          Column(modifier = Modifier.padding(14.dp)) {
+                              Text("⚡ NEURAL CLINICAL DEBRIEF", color = Color(0xFF00F0FF), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                              Spacer(modifier = Modifier.height(4.dp))
+                              Text(questions[qIndex].debrief, color = Color(0xFFCBD5E1), fontSize = 13.sp, lineHeight = 20.sp)
+                          }
+                      }
+
+                      Button(
+                          onClick = {
+                              qIndex = (qIndex + 1) % questions.size
+                              revealed = false
+                              selected = null
+                          },
+                          colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00F0FF)),
+                          modifier = Modifier.fillMaxWidth(),
+                          shape = RoundedCornerShape(14.dp)
+                      ) {
+                          Text("NEXT SCENARIO ❯", color = Color.Black, fontWeight = FontWeight.Bold)
+                      }
+                  }
+              }
+          }
+
+          data class CyberCase(val code: String, val title: String, val vignette: String, val options: List<String>, val correct: Int, val debrief: String)
+          EOF
+          fi
+
+          # 5. إعدادات البناء وتوليد gradlew وبناء APK
+          echo "org.gradle.jvmargs=-Xmx3072m -XX:+UseParallelGC" > gradle.properties
+          echo "org.gradle.parallel=false" >> gradle.properties
+          echo "kotlin.jvm.target.validation.mode=warning" >> gradle.properties
+          echo "android.useAndroidX=true" >> gradle.properties
+
+          gradle wrapper --gradle-version 8.9
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: AnatomyMaster-Cyber-Futuristic-APK
+          path: app/build/outputs/apk/debug/*.apk
