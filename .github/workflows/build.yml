@@ -23,29 +23,20 @@ jobs:
           gradle-version: '8.9'
           cache-disabled: true
 
-      - name: Detailed Error Diagnostic & Build
+      - name: Pinpoint Exact Compiler Errors
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-          # تنزيل ملف Snell إذا لم يكن موجوداً
-          mkdir -p app/src/main/assets
-          if [ ! -f "app/src/main/assets/snell_anatomy.pdf" ]; then
-            echo "Downloading Snell PDF..."
-            curl -L -o app/src/main/assets/snell_anatomy.pdf "https://github.com/mortadmr2-pixel/AnatomyMaster/releases/download/V1.0/SNELL.S.CLINICAL.ANATOMY.BY.REGIONS.10th.Edition.pdf"
-          fi
-
-          # توليد الـ wrapper
           gradle wrapper --gradle-version 8.9
           chmod +x gradlew
 
-          echo "=========================================================="
-          echo ">>> STARTING DETAILED COMPILATION DIAGNOSTIC <<<"
-          echo "=========================================================="
+          echo "=============================================="
+          echo ">>> RUNNING BUILD AND EXTRACTING ERRORS <<<"
+          echo "=============================================="
 
-          # تشغيل الكومبايلر مع إظهار أرقام الأسطر والخطأ بالتفصيل
-          ./gradlew compileDebugKotlin --stacktrace --info || true
+          # تشغيل وتخزين السجل واستخراج رسائل الخطأ الصريحة فقط
+          ./gradlew compileDebugKotlin > build_log.txt 2>&1 || true
 
-          echo "=========================================================="
-          echo ">>> RUNNING FULL ASSEMBLE WITH DETAILED LOGS <<<"
-          echo "=========================================================="
-          ./gradlew assembleDebug --stacktrace
+          echo "----------------- EXACT ERRORS FOUND -----------------"
+          grep -E "(e: |error:|FAILED|Exception)" build_log.txt || tail -n 60 build_log.txt
+          echo "------------------------------------------------------"
